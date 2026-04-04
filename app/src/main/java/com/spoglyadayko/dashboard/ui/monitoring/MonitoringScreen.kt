@@ -215,10 +215,23 @@ private fun WorkerCard(worker: WorkerStats) {
             }
 
             if (worker.batteryPercent != null) {
+                val batteryIcon = when {
+                    worker.batteryPlugged == true -> Icons.Default.BatteryChargingFull
+                    worker.batteryPercent > 50 -> Icons.Default.BatteryFull
+                    worker.batteryPercent > 20 -> Icons.Default.Battery3Bar
+                    else -> Icons.Default.Battery1Bar
+                }
+                val timeLeft = worker.batteryTimeLeftS?.let {
+                    val h = it / 3600
+                    val m = (it % 3600) / 60
+                    "${h}h${m}m"
+                }
+                val pluggedStr = if (worker.batteryPlugged == true) " (plugged)" else ""
+                val timeStr = timeLeft?.let { " \u2014 $it left" } ?: ""
                 StatRow(
-                    icon = Icons.Default.BatteryFull,
+                    icon = batteryIcon,
                     label = "Battery",
-                    value = "${worker.batteryPercent.fmt("%.0f")}%",
+                    value = "${worker.batteryPercent.fmt("%.0f")}%$pluggedStr$timeStr",
                 )
                 LinearProgressIndicator(
                     progress = { (worker.batteryPercent / 100.0).toFloat() },

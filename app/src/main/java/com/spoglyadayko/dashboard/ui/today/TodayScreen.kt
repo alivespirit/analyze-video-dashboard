@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -31,9 +32,17 @@ fun TodayScreen(
     viewModel: TodayViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
 
     LaunchedEffect(selectedDay) {
         viewModel.load(selectedDay)
+    }
+
+    // Scroll to top when new data arrives (after refresh or day change)
+    LaunchedEffect(state.data) {
+        if (state.data != null) {
+            listState.scrollToItem(0)
+        }
     }
 
     PullToRefreshBox(
@@ -63,6 +72,7 @@ fun TodayScreen(
                     else list.filter { it.status in statusFilter }
                 }
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 ) {

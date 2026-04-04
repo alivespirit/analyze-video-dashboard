@@ -274,29 +274,16 @@ private fun ProcessingChart(chart: List<ChartEntry>) {
             // Use log base 10 for a gentler compression that keeps outliers more visible
             val logScale = { v: Double -> kotlin.math.log10(1.0 + v) }
             val logMax = logScale(maxSeconds)
-            val midSeconds: Double = 10.0.pow(logMax / 2.0) - 1.0
 
             // Extract hour from each entry's time for hour boundary markers
             val hours = chart.map { it.time?.substringBefore(":")?.toIntOrNull() }
 
-            // Y-axis labels above the chart
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    "${maxSeconds.fmt("%.0f")}s",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (midSeconds > 1.0) {
-                    Text(
-                        "mid: ${midSeconds.fmt("%.0f")}s",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            // Y-axis max label above the chart
+            Text(
+                "max: ${maxSeconds.fmt("%.0f")}s",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(2.dp))
 
             val outlineArgb = MaterialTheme.colorScheme.outline.toAndroidColor()
@@ -312,12 +299,6 @@ private fun ProcessingChart(chart: List<ChartEntry>) {
                     strokeWidth = 1f
                     style = android.graphics.Paint.Style.STROKE
                     pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f, 4f), 0f)
-                }
-
-                // Mid-range reference line
-                if (midSeconds > 1.0) {
-                    val midY = size.height / 2f
-                    drawContext.canvas.nativeCanvas.drawLine(0f, midY, size.width, midY, dashPaint)
                 }
 
                 // Draw hour boundary lines

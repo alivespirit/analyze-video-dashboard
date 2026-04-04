@@ -158,6 +158,8 @@ data class WorkerStats(
     @SerialName("active_tasks") val activeTasks: Int? = null,
     @SerialName("max_tasks") val maxTasks: Int? = null,
     @SerialName("battery_percent") val batteryPercent: Double? = null,
+    @SerialName("battery_plugged") val batteryPlugged: Boolean? = null,
+    @SerialName("battery_time_left_s") val batteryTimeLeftS: Long? = null,
     @SerialName("load_avg_1m") val loadAvg1m: Double? = null,
     @SerialName("load_avg_5m") val loadAvg5m: Double? = null,
     @SerialName("load_avg_15m") val loadAvg15m: Double? = null,
