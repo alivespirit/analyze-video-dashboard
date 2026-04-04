@@ -165,7 +165,16 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     },
                     navigationIcon = {
                         if (showBackArrow) {
-                            IconButton(onClick = { navController.popBackStack() }) {
+                            val activity = LocalContext.current as? androidx.activity.ComponentActivity
+                            IconButton(onClick = {
+                                // For video detail, the BackHandler inside VideoDetailScreen
+                                // handles hiding players. Simulate system back to trigger it.
+                                if (isDetail) {
+                                    activity?.onBackPressedDispatcher?.onBackPressed()
+                                } else {
+                                    navController.popBackStack()
+                                }
+                            }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
                         }
@@ -258,7 +267,10 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     ) { backStackEntry ->
                         val basename = backStackEntry.arguments?.getString("basename") ?: return@composable
                         Surface(modifier = Modifier.fillMaxSize()) {
-                            VideoDetailScreen(basename = basename)
+                            VideoDetailScreen(
+                                basename = basename,
+                                onBack = { navController.popBackStack() },
+                            )
                         }
                     }
                     composable("settings") {

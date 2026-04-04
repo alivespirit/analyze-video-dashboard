@@ -1,7 +1,9 @@
 package com.spoglyadayko.dashboard.ui.today
 
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,15 +51,30 @@ private data class TabDef(val title: String, val key: String)
 @Composable
 fun VideoDetailScreen(
     basename: String,
+    onBack: () -> Unit = {},
     viewModel: VideoDetailViewModel = koinViewModel { parametersOf(basename) },
 ) {
     val state by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
 
+    // Track all PlayerView instances so we can hide them before navigation
+    val playerViews = remember { mutableListOf<View>() }
+    val hidePlayersAndGoBack = remember(onBack) {
+        {
+            // Set native views to INVISIBLE immediately — this happens before
+            // the Compose navigation animation starts, preventing the hardware
+            // surface overlay from showing on top of the transition.
+            playerViews.forEach { it.visibility = View.INVISIBLE }
+            onBack()
+        }
+    }
+
+    BackHandler(onBack = hidePlayersAndGoBack)
+
     val tabs = remember(state.crops, state.frames, state.cropsLoading, state.framesLoading) {
         buildList {
-            add(TabDef("Player", "player"))
             add(TabDef("Logs", "logs"))
+            add(TabDef("Player", "player"))
             if (state.crops.isNotEmpty()) add(TabDef("Crops", "crops"))
             if (state.frames.isNotEmpty()) add(TabDef("Frames", "frames"))
         }
@@ -99,6 +116,7 @@ fun VideoDetailScreen(
                     "player" -> PlayerTab(
                         videoUrl = state.videoUrl,
                         highlightUrl = state.highlightUrl,
+                        playerViews = playerViews,
                     )
                     "logs" -> LogsTab(state = state)
                     "crops" -> CropsTab(
@@ -113,7 +131,11 @@ fun VideoDetailScreen(
 }
 
 @Composable
-private fun PlayerTab(videoUrl: String, highlightUrl: String?) {
+private fun PlayerTab(
+    videoUrl: String,
+    highlightUrl: String?,
+    playerViews: MutableList<View>,
+) {
     val context = LocalContext.current
     var fullscreenPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
@@ -133,14 +155,8 @@ private fun PlayerTab(videoUrl: String, highlightUrl: String?) {
         }
     }
 
-    // Store PlayerView references to detach on dispose
-    val highlightViewRef = remember { mutableStateOf<PlayerView?>(null) }
-    val fullViewRef = remember { mutableStateOf<PlayerView?>(null) }
-
     DisposableEffect(Unit) {
         onDispose {
-            highlightViewRef.value?.player = null
-            fullViewRef.value?.player = null
             highlightPlayer?.release()
             fullPlayer.release()
         }
@@ -186,12 +202,12 @@ private fun PlayerTab(videoUrl: String, highlightUrl: String?) {
                     factory = {
                         PlayerView(it).apply {
                             this.player = highlightPlayer
-                            highlightViewRef.value = this
                             setFullscreenButtonClickListener { fullscreenPlayer = highlightPlayer }
                             layoutParams = FrameLayout.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.WRAP_CONTENT,
                             )
+                            playerViews.add(this)
                         }
                     },
                     modifier = Modifier
@@ -213,12 +229,12 @@ private fun PlayerTab(videoUrl: String, highlightUrl: String?) {
                 factory = {
                     PlayerView(it).apply {
                         this.player = fullPlayer
-                        fullViewRef.value = this
                         setFullscreenButtonClickListener { fullscreenPlayer = fullPlayer }
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.WRAP_CONTENT,
                         )
+                        playerViews.add(this)
                     }
                 },
                 modifier = Modifier
