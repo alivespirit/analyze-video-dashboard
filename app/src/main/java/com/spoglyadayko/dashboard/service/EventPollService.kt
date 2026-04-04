@@ -86,7 +86,7 @@ class EventPollService : Service() {
 
         return Notification.Builder(this, STATUS_CHANNEL_ID)
             .setContentTitle("Споглядайко")
-            .setContentText(statusText ?: "глядить...")
+            .setContentText(statusText ?: "спостерігає...")
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

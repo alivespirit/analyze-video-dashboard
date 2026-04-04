@@ -130,7 +130,14 @@ data class WeekdayHeatmap(
 data class MonitoringResponse(
     val master: MasterStats,
     val worker: WorkerStats? = null,
+    val tesla: TeslaStats? = null,
     @SerialName("ledger_recent") val ledgerRecent: List<LedgerEntry>,
+)
+
+@Serializable
+data class TeslaStats(
+    @SerialName("battery_percent") val batteryPercent: Int,
+    @SerialName("fetched_ts") val fetchedTs: String,
 )
 
 @Serializable

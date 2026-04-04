@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spoglyadayko.dashboard.data.api.LedgerEntry
 import com.spoglyadayko.dashboard.data.api.MasterStats
+import com.spoglyadayko.dashboard.data.api.TeslaStats
 import com.spoglyadayko.dashboard.data.api.WorkerStats
 import com.spoglyadayko.dashboard.ui.theme.fmt
 import com.spoglyadayko.dashboard.ui.theme.statusColor
@@ -52,6 +53,9 @@ fun MonitoringScreen(viewModel: MonitoringViewModel = koinViewModel()) {
                     item { MasterCard(data.master) }
                     if (data.worker != null) {
                         item { WorkerCard(data.worker) }
+                    }
+                    if (data.tesla != null) {
+                        item { TeslaCard(data.tesla) }
                     }
                     if (data.ledgerRecent.isNotEmpty()) {
                         item {
@@ -227,6 +231,35 @@ private fun WorkerCard(worker: WorkerStats) {
                     trackColor = MaterialTheme.colorScheme.outline,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun TeslaCard(tesla: TeslaStats) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Tesla", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+
+            val timeStr = tesla.fetchedTs.substringAfterLast(" ").substringBeforeLast(":")
+            StatRow(
+                icon = Icons.Default.ElectricCar,
+                label = "Battery",
+                value = "${tesla.batteryPercent}% (updated at $timeStr)",
+            )
+            LinearProgressIndicator(
+                progress = { tesla.batteryPercent / 100f },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                color = when {
+                    tesla.batteryPercent > 50 -> MaterialTheme.colorScheme.secondary
+                    tesla.batteryPercent > 30 -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.error
+                },
+                trackColor = MaterialTheme.colorScheme.outline,
+            )
         }
     }
 }
