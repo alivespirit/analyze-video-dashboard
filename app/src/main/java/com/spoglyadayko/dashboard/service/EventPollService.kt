@@ -20,6 +20,8 @@ class EventPollService : Service() {
     private val api: DashboardApi by inject()
     private val settings: SettingsStore by inject()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var pollingJob: Job? = null
+    private var nextEventNotificationId = EVENT_NOTIFICATION_BASE_ID
 
     companion object {
         const val STATUS_CHANNEL_ID = "spoglyadayko_status"
@@ -36,7 +38,10 @@ class EventPollService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = buildStatusNotification(null)
         startForeground(STATUS_NOTIFICATION_ID, notification)
-        startPolling()
+        // Only start polling once — ignore duplicate startService calls
+        if (pollingJob?.isActive != true) {
+            pollingJob = startPolling()
+        }
         return START_STICKY
     }
 
@@ -88,40 +93,41 @@ class EventPollService : Service() {
             .build()
     }
 
-    private fun startPolling() {
-        scope.launch {
+    private fun startPolling(): Job {
+        val service = this
+        return scope.launch {
             // Initial fetch to set status
             var lastTs: String? = null
             try {
-                val initial = api.getEventsLatest(since = "00:00")
-                updateStatusNotification(initial.currentStatus, initial.currentStatusSince)
+                val initial = service.api.getEventsLatest(since = "00:00")
+                service.updateStatusNotification(initial.currentStatus, initial.currentStatusSince)
                 lastTs = initial.serverTs
-                settings.setLastEventTs(initial.serverTs)
+                service.settings.setLastEventTs(initial.serverTs)
             } catch (_: Exception) {}
 
             while (isActive) {
-                val interval = settings.pollIntervalSeconds.first()
+                val interval = service.settings.pollIntervalSeconds.first()
                 delay(interval * 1000L)
 
                 try {
-                    val resp = api.getEventsLatest(since = lastTs)
+                    val resp = service.api.getEventsLatest(since = lastTs)
 
                     // Update persistent notification with current status
-                    updateStatusNotification(resp.currentStatus, resp.currentStatusSince)
+                    service.updateStatusNotification(resp.currentStatus, resp.currentStatusSince)
 
-                    // Post individual event notifications
-                    resp.events.forEachIndexed { i, event ->
+                    // Post individual event notifications with unique IDs
+                    resp.events.forEach { event ->
                         val hhmm = event.hhmmss?.substringBeforeLast(":") ?: "?"
                         val text = when (event.type) {
                             "away" -> "Пішла о $hhmm!"
                             "back" -> "Повернулась о $hhmm..."
                             else -> "${event.type} о $hhmm"
                         }
-                        postEventNotification(text, EVENT_NOTIFICATION_BASE_ID + i, event.video)
+                        service.postEventNotification(text, service.nextEventNotificationId++, event.video)
                     }
 
                     lastTs = resp.serverTs
-                    settings.setLastEventTs(resp.serverTs)
+                    service.settings.setLastEventTs(resp.serverTs)
                 } catch (_: Exception) {
                     // Network error — skip this cycle
                 }
