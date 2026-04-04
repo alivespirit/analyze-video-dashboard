@@ -29,6 +29,7 @@ data class VideoSummary(
     @SerialName("reid_neg") val reidNeg: Double? = null,
     @SerialName("away_back") val awayBack: String? = null,
     @SerialName("has_frames") val hasFrames: Boolean = false,
+    @SerialName("speed_kmh") val speedKmh: Int? = null,
 )
 
 @Serializable

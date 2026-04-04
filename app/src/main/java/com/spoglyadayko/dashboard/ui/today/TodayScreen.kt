@@ -213,6 +213,22 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                 )
             }
 
+            // SpeedTrap indicator
+            if (video.speedKmh != null) {
+                Spacer(Modifier.width(4.dp))
+                Surface(
+                    color = Color(0xFFFF6B00),
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text(
+                        "${video.speedKmh}km/h",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                    )
+                }
+            }
+
             Spacer(Modifier.weight(1f))
 
             // Processing time
