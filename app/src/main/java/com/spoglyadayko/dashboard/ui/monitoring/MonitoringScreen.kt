@@ -244,11 +244,15 @@ private fun TeslaCard(tesla: TeslaStats) {
             Text("Tesla", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
 
-            val timeStr = tesla.fetchedTs.substringAfterLast(" ").substringBeforeLast(":")
+            val fetchedTime = tesla.fetchedTs.substringAfterLast(" ").substringBeforeLast(":")
+            val fetchedDate = tesla.fetchedTs.substringBefore(" ")
+            val todayStr = java.time.LocalDate.now().toString()
+            val updatedStr = if (fetchedDate == todayStr) "updated at $fetchedTime"
+                else "updated $fetchedDate $fetchedTime"
             StatRow(
                 icon = Icons.Default.ElectricCar,
                 label = "Battery",
-                value = "${tesla.batteryPercent}% (updated at $timeStr)",
+                value = "${tesla.batteryPercent}% ($updatedStr)",
             )
             LinearProgressIndicator(
                 progress = { tesla.batteryPercent / 100f },
