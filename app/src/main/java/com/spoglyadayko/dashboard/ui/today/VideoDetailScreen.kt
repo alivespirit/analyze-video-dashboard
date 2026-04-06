@@ -62,16 +62,12 @@ fun VideoDetailScreen(
     val playerViews = remember { mutableListOf<View>() }
     val hidePlayersAndGoBack = remember(onBack) {
         {
-            // Set native views to INVISIBLE immediately — this happens before
-            // the Compose navigation animation starts, preventing the hardware
-            // surface overlay from showing on top of the transition.
             playerViews.forEach { it.visibility = View.INVISIBLE }
             onBack()
         }
     }
 
     BackHandler(onBack = hidePlayersAndGoBack)
-
     val tabs = remember(state.crops, state.frames, state.cropsLoading, state.framesLoading) {
         buildList {
             add(TabDef("Logs", "logs"))
@@ -138,7 +134,6 @@ private fun PlayerTab(
     playerViews: MutableList<View>,
 ) {
     val context = LocalContext.current
-    var fullscreenPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
     val highlightPlayer = remember(highlightUrl) {
         highlightUrl?.let {
@@ -163,30 +158,6 @@ private fun PlayerTab(
         }
     }
 
-    // Fullscreen dialog
-    fullscreenPlayer?.let { player ->
-        Dialog(
-            onDismissRequest = { fullscreenPlayer = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black),
-            ) {
-                AndroidView(
-                    factory = {
-                        PlayerView(it).apply {
-                            this.player = player
-                            setFullscreenButtonClickListener { fullscreenPlayer = null }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
@@ -200,15 +171,17 @@ private fun PlayerTab(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
                 AndroidView(
-                    factory = {
-                        PlayerView(it).apply {
-                            this.player = highlightPlayer
-                            setFullscreenButtonClickListener { fullscreenPlayer = highlightPlayer }
-                            layoutParams = FrameLayout.LayoutParams(
+                    factory = { ctx ->
+                        PlayerView(ctx).also { pv ->
+                            pv.player = highlightPlayer
+                            pv.setFullscreenButtonClickListener {
+                                FullscreenPlayerActivity.launch(ctx, highlightUrl!!, highlightPlayer.currentPosition)
+                            }
+                            pv.layoutParams = FrameLayout.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.WRAP_CONTENT,
                             )
-                            playerViews.add(this)
+                            playerViews.add(pv)
                         }
                     },
                     modifier = Modifier
@@ -227,15 +200,17 @@ private fun PlayerTab(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
             AndroidView(
-                factory = {
-                    PlayerView(it).apply {
-                        this.player = fullPlayer
-                        setFullscreenButtonClickListener { fullscreenPlayer = fullPlayer }
-                        layoutParams = FrameLayout.LayoutParams(
+                factory = { ctx ->
+                    PlayerView(ctx).also { pv ->
+                        pv.player = fullPlayer
+                        pv.setFullscreenButtonClickListener {
+                            FullscreenPlayerActivity.launch(ctx, videoUrl, fullPlayer.currentPosition)
+                        }
+                        pv.layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.WRAP_CONTENT,
                         )
-                        playerViews.add(this)
+                        playerViews.add(pv)
                     }
                 },
                 modifier = Modifier

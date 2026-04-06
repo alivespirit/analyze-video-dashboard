@@ -24,6 +24,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.today.FullscreenPlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:exported="false" />
+
         <service
             android:name=".service.EventPollService"
             android:foregroundServiceType="dataSync"
