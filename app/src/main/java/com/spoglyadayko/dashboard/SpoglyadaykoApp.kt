@@ -269,6 +269,7 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         Surface(modifier = Modifier.fillMaxSize()) {
                             VideoDetailScreen(
                                 basename = basename,
+                                day = selectedDay,
                                 onBack = { navController.popBackStack() },
                             )
                         }

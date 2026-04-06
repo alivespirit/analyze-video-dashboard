@@ -25,7 +25,7 @@ val appModule = module {
     }
 
     viewModel { TodayViewModel(get()) }
-    viewModel { params -> VideoDetailViewModel(get(), params.get()) }
+    viewModel { params -> VideoDetailViewModel(get(), params.get(), params.getOrNull()) }
     viewModel { TodayStatsViewModel(get()) }
     viewModel { OverallStatsViewModel(get()) }
     viewModel { MonitoringViewModel(get()) }

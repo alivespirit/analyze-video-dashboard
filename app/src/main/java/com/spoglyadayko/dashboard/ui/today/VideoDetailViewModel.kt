@@ -26,6 +26,7 @@ data class VideoDetailUiState(
 class VideoDetailViewModel(
     private val api: DashboardApi,
     basename: String,
+    private val day: String? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -46,7 +47,7 @@ class VideoDetailViewModel(
     private fun loadLogs() {
         viewModelScope.launch {
             try {
-                val resp = api.getVideoLogs(_uiState.value.basename)
+                val resp = api.getVideoLogs(_uiState.value.basename, day = day)
                 _uiState.value = _uiState.value.copy(logs = resp.entries, logsLoading = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

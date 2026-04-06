@@ -51,8 +51,9 @@ private data class TabDef(val title: String, val key: String)
 @Composable
 fun VideoDetailScreen(
     basename: String,
+    day: String? = null,
     onBack: () -> Unit = {},
-    viewModel: VideoDetailViewModel = koinViewModel { parametersOf(basename) },
+    viewModel: VideoDetailViewModel = koinViewModel { parametersOf(basename, day) },
 ) {
     val state by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
