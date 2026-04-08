@@ -64,6 +64,12 @@ class DashboardApi(private val baseUrlProvider: () -> String) {
         }.body()
     }
 
+    suspend fun getGateCrossings(day: String? = null): GateCrossingsResponse {
+        return client.get("$baseUrl/api/today/gate-crossings") {
+            day?.let { parameter("day", it) }
+        }.body()
+    }
+
     suspend fun getOverallStats(): OverallStatsResponse =
         client.get("$baseUrl/api/stats/overall").body()
 

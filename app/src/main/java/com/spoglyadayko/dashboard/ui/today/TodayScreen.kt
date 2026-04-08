@@ -26,7 +26,7 @@ import org.koin.androidx.compose.koinViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
-    statusFilter: Set<String>,
+    excludedStatuses: Set<String>,
     selectedDay: String?,
     onVideoClick: (String) -> Unit,
     viewModel: TodayViewModel = koinViewModel(),
@@ -68,15 +68,15 @@ fun TodayScreen(
             state.data != null -> {
                 val data = state.data!!
                 val videos = data.videos.reversed().let { list ->
-                    if (statusFilter.isEmpty()) list
-                    else list.filter { it.status in statusFilter }
+                    if (excludedStatuses.isEmpty()) list
+                    else list.filter { it.status !in excludedStatuses }
                 }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 ) {
-                    if (statusFilter.isNotEmpty()) {
+                    if (excludedStatuses.isNotEmpty()) {
                         item {
                             Surface(
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
@@ -84,7 +84,7 @@ fun TodayScreen(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 Text(
-                                    "filtered: ${videos.size}/${data.videos.size}",
+                                    "hidden: ${excludedStatuses.size} \u2022 ${videos.size}/${data.videos.size}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -250,13 +250,19 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                 )
             }
 
-            // Worker indicator
+            // Worker / Local indicator
+            Spacer(Modifier.width(4.dp))
             if (video.worker) {
-                Spacer(Modifier.width(4.dp))
                 Text(
                     "W",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.tertiary,
+                )
+            } else {
+                Text(
+                    "L",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFFF6B00),
                 )
             }
         }

@@ -57,7 +57,8 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
 
     SpoglyadaykoTheme(darkTheme = darkTheme) {
         val navController = rememberNavController()
-        var statusFilter by remember { mutableStateOf<Set<String>>(emptySet()) }
+        val settingsStore = koinInject<SettingsStore>()
+        val excludedStatuses by settingsStore.excludedStatuses.collectAsState(initial = emptySet())
         var selectedDay by remember { mutableStateOf<String?>(null) }
         var showDatePicker by remember { mutableStateOf(false) }
         var availableDays by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -142,19 +143,21 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
         // Observe current nav route for top bar state
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = currentBackStackEntry?.destination?.route
-        val isOverlay = currentRoute?.startsWith("video_detail") == true || currentRoute == "settings"
+        val isOverlay = currentRoute?.startsWith("video_detail") == true || currentRoute == "settings" || currentRoute == "gate_crossings"
 
         Scaffold(
             topBar = {
                 val isDetail = currentRoute?.startsWith("video_detail") == true
                 val isSettings = currentRoute == "settings"
-                val showBackArrow = isDetail || isSettings
+                val isGateCrossings = currentRoute == "gate_crossings"
+                val showBackArrow = isDetail || isSettings || isGateCrossings
 
                 TopAppBar(
                     title = {
                         when {
                             isDetail -> Text("\u0412\u0456\u0434\u0435\u043E")
                             isSettings -> Text("Settings")
+                            isGateCrossings -> Text("\u0425\u0432\u0456\u0440\u0442\u043A\u0430")
                             else -> Image(
                                 painter = painterResource(R.drawable.app_title),
                                 contentDescription = "\u0421\u043F\u043E\u0433\u043B\u044F\u0434\u0430\u0439\u043A\u043E",
@@ -235,16 +238,17 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     ) { page ->
                         when (page) {
                             0 -> TodayScreen(
-                                statusFilter = statusFilter,
+                                excludedStatuses = excludedStatuses,
                                 selectedDay = selectedDay,
                                 onVideoClick = { basename ->
                                     navController.navigate("video_detail/$basename")
                                 },
                             )
                             1 -> TodayStatsScreen(
-                                statusFilter = statusFilter,
+                                excludedStatuses = excludedStatuses,
                                 selectedDay = selectedDay,
-                                onStatusFilterChanged = { statusFilter = it },
+                                onExcludedChanged = { scope.launch { settingsStore.setExcludedStatuses(it) } },
+                                onGateCrossingsClick = { navController.navigate("gate_crossings") },
                             )
                             2 -> OverallStatsScreen()
                             3 -> MonitoringScreen()
@@ -277,6 +281,13 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     composable("settings") {
                         Surface(modifier = Modifier.fillMaxSize()) {
                             SettingsScreen()
+                        }
+                    }
+                    composable("gate_crossings") {
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            com.spoglyadayko.dashboard.ui.gatecrossings.GateCrossingsScreen(
+                                day = selectedDay,
+                            )
                         }
                     }
                 }

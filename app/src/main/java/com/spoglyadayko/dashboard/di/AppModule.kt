@@ -2,6 +2,7 @@ package com.spoglyadayko.dashboard.di
 
 import com.spoglyadayko.dashboard.data.api.DashboardApi
 import com.spoglyadayko.dashboard.data.preferences.SettingsStore
+import com.spoglyadayko.dashboard.ui.gatecrossings.GateCrossingsViewModel
 import com.spoglyadayko.dashboard.ui.monitoring.MonitoringViewModel
 import com.spoglyadayko.dashboard.ui.overallstats.OverallStatsViewModel
 import com.spoglyadayko.dashboard.ui.settings.SettingsViewModel
@@ -28,6 +29,7 @@ val appModule = module {
     viewModel { params -> VideoDetailViewModel(get(), params.get(), params.getOrNull()) }
     viewModel { TodayStatsViewModel(get()) }
     viewModel { OverallStatsViewModel(get()) }
+    viewModel { params -> GateCrossingsViewModel(get(), params.getOrNull()) }
     viewModel { MonitoringViewModel(get()) }
     viewModel { SettingsViewModel(get()) }
 }

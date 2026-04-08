@@ -4,8 +4,9 @@ Android dashboard app for the [analyze-video](https://github.com/alivespirit/ana
 
 ## Features
 
-- **Today** — Per-video summary with status, gate direction, ReID scores, processing time, frames indicator. Tap to view video (with highlight clip), logs, ReID crops, and insignificant/no_person frames. Swipe between tabs.
-- **Today's Stats** — Status counts with tap-to-filter, gate crossings, processing time chart (log scale with hour markers), away/back intervals.
+- **Today** — Per-video summary with status, gate direction, ReID scores, processing time, frames indicator, worker/local indicator. Tap to view video (with highlight clip), logs, ReID crops, and insignificant/no_person frames. Swipe between tabs.
+- **Today's Stats** — Status counts with tap-to-exclude filter (persistent across restarts), gate crossings (tap to open Хвіртка page), processing time chart (log scale with hour markers), away/back intervals.
+- **Хвіртка** — Gate area overview: all videos with ReID crops shown with timestamps, direction arrows, match scores, and crop thumbnails. Tap crops for fullscreen zoom, long-press to copy to gallery.
 - **Overall Stats** — Per-day video counts (selectable bars), processing times per day chart, weekday heatmaps for away/back events (tap cells for details).
 - **Monitoring** — Master CPU/RAM/battery, worker status/load/CPU temp/RAM/battery, recent processing ledger. Auto-refreshes every 15 seconds.
 - **Notifications** — Foreground service showing current home/away status ("Вдома з 14:05" / "Десь там з 10:15"). Away/back event alerts with ReID crop image preview. Tap notification to open the corresponding video.
@@ -60,6 +61,7 @@ The master needs the updated `tools/log_dashboard/app.py` with these JSON API en
 | `GET /api/today/video/{basename}/reid-crops` | ReID crop image URLs |
 | `GET /api/today/video/{basename}/frames` | Insignificant/no_person frame URLs |
 | `GET /api/today/video/{basename}/highlight` | Highlight clip URL if available |
+| `GET /api/today/gate-crossings?day=` | Videos with ReID crops (gate area overview) |
 | `GET /api/today/stats?day=` | Today's aggregated stats |
 | `GET /api/stats/overall` | Overall stats with heatmaps |
 | `GET /api/monitoring` | System monitoring (CPU, RAM, battery, worker health) |

@@ -17,6 +17,7 @@ class SettingsStore(private val context: Context) {
         private val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         private val LAST_EVENT_TS = stringPreferencesKey("last_event_ts")
         private val THEME_MODE = stringPreferencesKey("theme_mode")
+        private val EXCLUDED_STATUSES = stringSetPreferencesKey("excluded_statuses")
 
         const val DEFAULT_SERVER_URL = "http://192.168.1.33:8192"
         const val DEFAULT_POLL_INTERVAL = 30
@@ -41,6 +42,10 @@ class SettingsStore(private val context: Context) {
         prefs[THEME_MODE] ?: THEME_AUTO
     }
 
+    val excludedStatuses: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[EXCLUDED_STATUSES] ?: emptySet()
+    }
+
     val lastEventTs: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[LAST_EVENT_TS]
     }
@@ -59,6 +64,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setThemeMode(mode: String) {
         context.dataStore.edit { prefs -> prefs[THEME_MODE] = mode }
+    }
+
+    suspend fun setExcludedStatuses(statuses: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[EXCLUDED_STATUSES] = statuses }
     }
 
     suspend fun setLastEventTs(ts: String) {

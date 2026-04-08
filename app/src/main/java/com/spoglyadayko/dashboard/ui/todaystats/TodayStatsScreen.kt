@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -35,9 +37,10 @@ private val ALL_STATUSES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayStatsScreen(
-    statusFilter: Set<String>,
+    excludedStatuses: Set<String>,
     selectedDay: String?,
-    onStatusFilterChanged: (Set<String>) -> Unit,
+    onExcludedChanged: (Set<String>) -> Unit,
+    onGateCrossingsClick: () -> Unit,
     viewModel: TodayStatsViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -63,8 +66,8 @@ fun TodayStatsScreen(
             }
             state.data != null -> {
                 val data = state.data!!
-                val filteredChart = if (statusFilter.isEmpty()) data.processingChart
-                    else data.processingChart.filter { it.status in statusFilter }
+                val filteredChart = if (excludedStatuses.isEmpty()) data.processingChart
+                    else data.processingChart.filter { it.status !in excludedStatuses }
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -78,24 +81,24 @@ fun TodayStatsScreen(
                         )
                     }
 
-                    // Status counts as a FlowRow-style grid with tap to filter
+                    // Status counts — always show all known statuses, tap to exclude
                     item {
                         StatusCountsGrid(
                             counts = data.statusCounts,
-                            selectedStatuses = statusFilter,
+                            excludedStatuses = excludedStatuses,
                             onToggle = { status ->
-                                val newFilter = if (status in statusFilter) {
-                                    statusFilter - status
+                                val newExcluded = if (status in excludedStatuses) {
+                                    excludedStatuses - status
                                 } else {
-                                    statusFilter + status
+                                    excludedStatuses + status
                                 }
-                                onStatusFilterChanged(newFilter)
+                                onExcludedChanged(newExcluded)
                             },
                         )
                     }
 
-                    // Active filter indicator
-                    if (statusFilter.isNotEmpty()) {
+                    // Active exclusion indicator
+                    if (excludedStatuses.isNotEmpty()) {
                         item {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
@@ -107,7 +110,7 @@ fun TodayStatsScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(
-                                            "Filter active: ${statusFilter.joinToString(", ") { it.replace("_", " ") }}",
+                                            "Hidden: ${excludedStatuses.joinToString(", ") { it.replace("_", " ") }}",
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
@@ -116,7 +119,7 @@ fun TodayStatsScreen(
                                             "\u2715",
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.clickable { onStatusFilterChanged(emptySet()) },
+                                            modifier = Modifier.clickable { onExcludedChanged(emptySet()) },
                                         )
                                     }
                                 }
@@ -125,7 +128,7 @@ fun TodayStatsScreen(
                     }
 
                     // Gate crossings
-                    item { GateCrossingsCard(data.gateCounts) }
+                    item { GateCrossingsCard(data.gateCounts, onClick = onGateCrossingsClick) }
 
                     // Processing stats
                     if (data.processingStats.isNotEmpty()) {
@@ -156,15 +159,14 @@ fun TodayStatsScreen(
 @Composable
 private fun StatusCountsGrid(
     counts: Map<String, Int>,
-    selectedStatuses: Set<String>,
+    excludedStatuses: Set<String>,
     onToggle: (String) -> Unit,
 ) {
-    // Show all known statuses that have counts, plus any unknown ones
-    val knownWithCounts = ALL_STATUSES.filter { counts.containsKey(it) }
+    // Always show all known statuses (even with 0 count), plus any unknown from data
     val unknownStatuses = counts.keys.filter { it !in ALL_STATUSES }.sorted()
-    val displayStatuses = knownWithCounts + unknownStatuses
+    val displayStatuses = ALL_STATUSES + unknownStatuses
 
-    val anySelected = selectedStatuses.isNotEmpty()
+    val anyExcluded = excludedStatuses.isNotEmpty()
 
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -173,26 +175,26 @@ private fun StatusCountsGrid(
     ) {
         displayStatuses.forEach { status ->
             val count = counts[status] ?: 0
-            val isSelected = status in selectedStatuses
+            val isExcluded = status in excludedStatuses
             val bgColor = statusColor(status)
-            // Full color when no filter active or when this status is selected; dim others
-            val isDimmed = anySelected && !isSelected
-            val borderMod = if (isSelected) {
-                Modifier.border(2.dp, Color.White, RoundedCornerShape(6.dp))
+            val borderMod = if (isExcluded) {
+                Modifier.border(2.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(6.dp))
             } else {
                 Modifier
             }
 
             Surface(
-                color = if (isDimmed) bgColor.copy(alpha = 0.3f) else bgColor,
+                color = if (isExcluded) bgColor.copy(alpha = 0.3f) else bgColor,
                 shape = RoundedCornerShape(6.dp),
                 modifier = borderMod.clickable { onToggle(status) },
             ) {
                 Text(
                     "${status.replace("_", " ")}: $count",
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (isDimmed) Color.White.copy(alpha = 0.5f)
+                    style = if (isExcluded) MaterialTheme.typography.labelMedium.copy(
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+                    ) else MaterialTheme.typography.labelMedium,
+                    color = if (isExcluded) Color.White.copy(alpha = 0.5f)
                         else if (status in listOf("no_person", "no_significant_motion")) Color.Black
                         else Color.White,
                 )
@@ -202,18 +204,26 @@ private fun StatusCountsGrid(
 }
 
 @Composable
-private fun GateCrossingsCard(counts: Map<String, Int>) {
+private fun GateCrossingsCard(counts: Map<String, Int>, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Gate crossings:", fontWeight = FontWeight.Medium)
             Text("\u2191 ${counts["up"] ?: 0}", color = AwayColor)
             Text("\u2193 ${counts["down"] ?: 0}", color = BackColor)
+            Spacer(Modifier.weight(1f))
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = "Open",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

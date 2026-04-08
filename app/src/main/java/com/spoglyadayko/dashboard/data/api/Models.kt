@@ -207,3 +207,21 @@ data class ReidCopyResponse(
     val status: String,
     val destination: String? = null,
 )
+
+@Serializable
+data class GateCrossingsResponse(
+    val day: String,
+    @SerialName("gate_crossings") val gateCrossings: List<GateCrossingEntry>,
+)
+
+@Serializable
+data class GateCrossingEntry(
+    val basename: String,
+    val time: String? = null,
+    val direction: String? = null,
+    val status: String? = null,
+    @SerialName("reid_matched") val reidMatched: Boolean? = null,
+    @SerialName("reid_score") val reidScore: Double? = null,
+    @SerialName("reid_neg") val reidNeg: Double? = null,
+    val crops: List<String> = emptyList(),
+)

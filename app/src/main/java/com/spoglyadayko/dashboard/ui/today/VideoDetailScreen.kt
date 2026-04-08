@@ -368,6 +368,7 @@ private fun FramesTab(state: VideoDetailUiState) {
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize()
+                        .clickable { if (scale <= 1f) fullscreenUrl = null }
                         .pointerInput(Unit) {
                             detectTransformGestures { _, pan, zoom, _ ->
                                 scale = (scale * zoom).coerceIn(1f, 5f)
