@@ -132,11 +132,15 @@ fun GateCrossingsScreen(
                         items(state.items, key = { it.entry.basename }) { item ->
                             GateCrossingRow(
                                 item = item,
+                                showMenu = showMenu,
+                                menuCropUrl = menuCropUrl,
                                 onCropClick = { fullscreenUrl = it },
                                 onCropLongClick = { url ->
                                     menuCropUrl = url
                                     showMenu = true
                                 },
+                                onCopyToGallery = { url, target -> viewModel.copyToGallery(url, target) },
+                                onDismissMenu = { showMenu = false },
                             )
                         }
                     }
@@ -150,27 +154,6 @@ fun GateCrossingsScreen(
         }
 
         SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
-
-        // Gallery copy menu as a global dropdown anchored to screen
-        DropdownMenu(
-            expanded = showMenu && menuCropUrl != null,
-            onDismissRequest = { showMenu = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("Copy to positive gallery") },
-                onClick = {
-                    showMenu = false
-                    menuCropUrl?.let { viewModel.copyToGallery(it, "positive") }
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("Copy to negative gallery") },
-                onClick = {
-                    showMenu = false
-                    menuCropUrl?.let { viewModel.copyToGallery(it, "negative") }
-                },
-            )
-        }
     }
 }
 
@@ -178,8 +161,12 @@ fun GateCrossingsScreen(
 @Composable
 private fun GateCrossingRow(
     item: GateCrossingItem,
+    showMenu: Boolean,
+    menuCropUrl: String?,
     onCropClick: (String) -> Unit,
     onCropLongClick: (String) -> Unit,
+    onCopyToGallery: (String, String) -> Unit,
+    onDismissMenu: () -> Unit,
 ) {
     val entry = item.entry
 
@@ -273,21 +260,42 @@ private fun GateCrossingRow(
                 modifier = Modifier.weight(1f),
             ) {
                 item.cropUrls.forEach { cropUrl ->
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(cropUrl)
-                            .build(),
-                        contentDescription = "ReID crop",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(0.6f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .combinedClickable(
-                                onClick = { onCropClick(cropUrl) },
-                                onLongClick = { onCropLongClick(cropUrl) },
-                            ),
-                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(cropUrl)
+                                .build(),
+                            contentDescription = "ReID crop",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(0.6f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .combinedClickable(
+                                    onClick = { onCropClick(cropUrl) },
+                                    onLongClick = { onCropLongClick(cropUrl) },
+                                ),
+                        )
+                        DropdownMenu(
+                            expanded = showMenu && menuCropUrl == cropUrl,
+                            onDismissRequest = onDismissMenu,
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Copy to positive gallery") },
+                                onClick = {
+                                    onDismissMenu()
+                                    onCopyToGallery(cropUrl, "positive")
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Copy to negative gallery") },
+                                onClick = {
+                                    onDismissMenu()
+                                    onCopyToGallery(cropUrl, "negative")
+                                },
+                            )
+                        }
+                    }
                 }
                 // Fill remaining slots with spacers if <3 crops
                 repeat(3 - item.cropUrls.size) {
