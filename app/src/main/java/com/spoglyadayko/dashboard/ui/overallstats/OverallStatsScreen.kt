@@ -245,21 +245,9 @@ private fun PerDayChart(perDay: List<DayStats>) {
                 }
             }
 
-            // Day labels
+            // Day labels (evenly spaced across all days)
             Spacer(Modifier.height(4.dp))
-            val lastDays = perDay.takeLast(7)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                lastDays.forEach {
-                    Text(
-                        it.day.takeLast(5),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            DayLabelsRow(perDay.map { it.day })
 
             // Selected day details
             selectedIdx?.let { idx ->
@@ -381,21 +369,9 @@ private fun ProcessingTimesChart(perDay: List<DayStats>) {
                 }
             }
 
-            // Day labels
+            // Day labels (evenly spaced across all days)
             Spacer(Modifier.height(4.dp))
-            val lastDays = perDay.takeLast(7)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                lastDays.forEach {
-                    Text(
-                        it.day.takeLast(5),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            DayLabelsRow(perDay.map { it.day })
 
             // Selected day details
             selectedIdx?.let { idx ->
@@ -424,11 +400,19 @@ private fun ProcessingTimesChart(perDay: List<DayStats>) {
 
 @Composable
 private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: Boolean) {
-    val counts = if (isAway) heatmap.awayCounts else heatmap.backCounts
     val color = if (isAway) AwayColor else BackColor
-    val maxVal = counts.flatten().maxOrNull() ?: 1
 
-    // Selected cell state: weekday index + bin index
+    // Find first bin with any event across both away and back (shared trim for both cards)
+    val allCounts = heatmap.awayCounts + heatmap.backCounts
+    val trimStart = allCounts
+        .mapNotNull { bins -> bins.indexOfFirst { it > 0 }.takeIf { it >= 0 } }
+        .minOrNull() ?: 0
+
+    val counts = if (isAway) heatmap.awayCounts else heatmap.backCounts
+    val trimmedCounts = counts.map { it.drop(trimStart) }
+    val maxVal = trimmedCounts.flatten().maxOrNull() ?: 1
+
+    // Selected cell state: weekday index + bin index (in trimmed space)
     var selectedCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     Card(
@@ -440,6 +424,7 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
             Spacer(Modifier.height(8.dp))
 
             heatmap.weekdayLabels.forEachIndexed { wd, label ->
+                val bins = trimmedCounts.getOrNull(wd) ?: emptyList()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         label,
@@ -452,7 +437,7 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
                             .height(20.dp)
                             .pointerInput(wd) {
                                 detectTapGestures { offset ->
-                                    val bins = counts.getOrNull(wd) ?: return@detectTapGestures
+                                    if (bins.isEmpty()) return@detectTapGestures
                                     val cellWidth = size.width.toFloat() / bins.size.coerceAtLeast(1)
                                     val binIdx = (offset.x / cellWidth).toInt().coerceIn(0, bins.size - 1)
                                     selectedCell = if (selectedCell == Pair(wd, binIdx)) null else Pair(wd, binIdx)
@@ -460,7 +445,7 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
                             },
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            val bins = counts.getOrNull(wd) ?: return@Canvas
+                            if (bins.isEmpty()) return@Canvas
                             val cellWidth = size.width / bins.size.coerceAtLeast(1)
                             bins.forEachIndexed { i, v ->
                                 val alpha = if (maxVal > 0) v.toFloat() / maxVal else 0f
@@ -484,23 +469,27 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
                 }
             }
 
+            // Hour labels (adjusted for trim)
+            val trimmedStartOffset = heatmap.startOffset + trimStart * heatmap.binMinutes
+            val trimmedBins = heatmap.bins - trimStart
             Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth()) {
                 Spacer(Modifier.width(32.dp))
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
-                    for (h in heatmap.startOffset / 60..heatmap.startOffset / 60 + heatmap.bins step 3) {
+                    for (h in trimmedStartOffset / 60..trimmedStartOffset / 60 + trimmedBins step 3) {
                         Text("${h}h", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
 
-            // Selected cell details
+            // Selected cell details (map trimmed index back to original time)
             selectedCell?.let { (wd, binIdx) ->
-                val count = counts.getOrNull(wd)?.getOrNull(binIdx) ?: 0
+                val count = trimmedCounts.getOrNull(wd)?.getOrNull(binIdx) ?: 0
                 val totalDays = heatmap.weekdayDayCounts.getOrNull(wd) ?: 0
-                val startHour = heatmap.startOffset / 60 + binIdx * heatmap.binMinutes / 60
-                val startMin = (binIdx * heatmap.binMinutes) % 60
+                val origBinIdx = binIdx + trimStart
+                val startHour = heatmap.startOffset / 60 + origBinIdx * heatmap.binMinutes / 60
+                val startMin = (origBinIdx * heatmap.binMinutes) % 60
                 val endHour = startHour + heatmap.binMinutes / 60
                 val pct = if (totalDays > 0) (count.toFloat() / totalDays * 100).toDouble().fmt("%.0f") else "0"
                 Spacer(Modifier.height(6.dp))
@@ -510,6 +499,31 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
                     color = color,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Evenly-spaced day labels across the full width of the chart.
+ * Picks ~7 labels max so they don't overlap.
+ */
+@Composable
+private fun DayLabelsRow(days: List<String>) {
+    if (days.isEmpty()) return
+    val maxLabels = 7
+    val step = (days.size.toFloat() / maxLabels).coerceAtLeast(1f)
+    val indices = (0 until maxLabels).map { (it * step).toInt().coerceAtMost(days.lastIndex) }.distinct()
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val totalWidth = maxWidth
+        indices.forEach { idx ->
+            val fraction = idx.toFloat() / days.size.coerceAtLeast(1)
+            Text(
+                days[idx].takeLast(5),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.offset(x = totalWidth * fraction),
+            )
         }
     }
 }

@@ -281,19 +281,35 @@ private fun ProcessingChart(chart: List<ChartEntry>) {
             Spacer(Modifier.height(8.dp))
 
             val maxSeconds = chart.maxOfOrNull { it.seconds } ?: 1.0
-            // Use log base 10 for a gentler compression that keeps outliers more visible
-            val logScale = { v: Double -> kotlin.math.log10(1.0 + v) }
-            val logMax = logScale(maxSeconds)
+            val avgSeconds = chart.map { it.seconds }.average()
+            // Only use log scale if there's a clear outlier (>= 4x average)
+            val useLogScale = avgSeconds > 0 && maxSeconds >= 4.0 * avgSeconds
+            val scaleValue: (Double) -> Double = if (useLogScale) {
+                { v -> kotlin.math.log10(1.0 + v) }
+            } else {
+                { v -> v }
+            }
+            val scaleMax = scaleValue(maxSeconds)
 
             // Extract hour from each entry's time for hour boundary markers
             val hours = chart.map { it.time?.substringBefore(":")?.toIntOrNull() }
 
             // Y-axis max label above the chart
-            Text(
-                "max: ${maxSeconds.fmt("%.0f")}s",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "max: ${maxSeconds.fmt("%.0f")}s",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (useLogScale) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "log scale",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+            }
             Spacer(Modifier.height(2.dp))
 
             val outlineArgb = MaterialTheme.colorScheme.outline.toAndroidColor()
@@ -322,10 +338,10 @@ private fun ProcessingChart(chart: List<ChartEntry>) {
                     lastHour = h ?: lastHour
                 }
 
-                // Draw bars with log scale
+                // Draw bars
                 chart.forEachIndexed { i, entry ->
-                    val logVal = logScale(entry.seconds)
-                    val barHeight = (logVal / logMax * size.height).toFloat()
+                    val scaledVal = scaleValue(entry.seconds)
+                    val barHeight = (scaledVal / scaleMax * size.height).toFloat()
                     drawRect(
                         color = statusColor(entry.status),
                         topLeft = Offset(i * barWidth, size.height - barHeight),
