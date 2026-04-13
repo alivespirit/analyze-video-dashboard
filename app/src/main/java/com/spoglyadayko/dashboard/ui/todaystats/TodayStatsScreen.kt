@@ -239,16 +239,19 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
 
     // Compute the visible time range:
     //   - left edge: floor(earliest start) to the hour
-    //   - right edge: ceil(latest end) to the hour. For ongoing intervals, use `now` when
-    //     viewing today (so the bar extends only to the current time), else fall back to 24h.
+    //   - right edge: ceil(max(latest end, now)) when viewing today, so the timeline keeps
+    //     growing past the last interval; for past days it's ceil(latest end), or 24h if any
+    //     interval is still open (shouldn't normally happen on past days).
     val starts = intervals.mapNotNull { parseHhMmToMinutes(it.start) }
     val ends = intervals.mapNotNull { parseHhMmToMinutes(it.end) }
     val hasOpen = intervals.any { it.start != null && it.end == null }
 
     val earliestStart = starts.minOrNull() ?: 0
     val dayStartMin = (earliestStart / 60) * 60
-    val openEndCap = nowMinutes ?: (24 * 60)
-    val latestEnd = maxOf(ends.maxOrNull() ?: dayStartMin, if (hasOpen) openEndCap else dayStartMin)
+    val latestEnd = maxOf(
+        ends.maxOrNull() ?: dayStartMin,
+        nowMinutes ?: if (hasOpen) 24 * 60 else dayStartMin,
+    )
     val dayEndMin = (((latestEnd + 59) / 60) * 60).coerceAtLeast(dayStartMin + 60)
     val totalMin = (dayEndMin - dayStartMin).toFloat().coerceAtLeast(60f)
 
