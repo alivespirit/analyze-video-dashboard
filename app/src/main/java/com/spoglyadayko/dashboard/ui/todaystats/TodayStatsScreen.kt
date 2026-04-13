@@ -3,6 +3,7 @@ package com.spoglyadayko.dashboard.ui.todaystats
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -113,14 +116,14 @@ fun TodayStatsScreen(
                         )
                     }
 
-                    // Processing stats
-                    if (data.processingStats.isNotEmpty()) {
-                        item { ProcessingStatsCard(data.processingStats) }
-                    }
-
-                    // Processing chart (filtered)
-                    if (filteredChart.isNotEmpty()) {
-                        item { ProcessingChart(filteredChart) }
+                    // Processing times (stats table + per-video chart, unified)
+                    if (data.processingStats.isNotEmpty() || filteredChart.isNotEmpty()) {
+                        item {
+                            ProcessingTimesCard(
+                                stats = data.processingStats,
+                                chart = filteredChart,
+                            )
+                        }
                     }
                 }
             }
@@ -376,8 +379,9 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                     Spacer(Modifier.width(2.dp))
                     Text(iv.end, style = MaterialTheme.typography.bodySmall)
                 } else {
+                    // Only "ongoing" when viewing today; for past days the end is simply unknown.
                     Text(
-                        "ongoing",
+                        if (nowMinutes != null) "ongoing" else "...",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -396,151 +400,186 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
 }
 
 @Composable
-private fun ProcessingStatsCard(stats: Map<String, Double>) {
+private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEntry>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text("Processing times", fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(8.dp))
 
-            // Table header
-            Row(Modifier.fillMaxWidth()) {
-                Text("", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                Text("Min", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-                Text("Avg", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-                Text("Max", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-
-            // Motion detection row
-            if (stats.containsKey("md_avg")) {
+            // Summary table (min/avg/max for MD and Full)
+            if (stats.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth()) {
-                    Text("MD", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                    Text(stats["md_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text(stats["md_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text(stats["md_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    Text("", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                    Text("Min", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                    Text("Avg", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                    Text("Max", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+                if (stats.containsKey("md_avg")) {
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("MD", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                        Text(stats["md_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["md_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["md_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (stats.containsKey("full_avg")) {
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("Full", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                        Text(stats["full_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["full_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["full_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
 
-            // Full processing row
-            if (stats.containsKey("full_avg")) {
-                Row(Modifier.fillMaxWidth()) {
-                    Text("Full", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                    Text(stats["full_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text(stats["full_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text(stats["full_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            // Per-video chart
+            var selectedIdx by remember(chart) { mutableStateOf<Int?>(null) }
+            if (chart.isNotEmpty()) {
+                if (stats.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider()
                 }
-            }
-        }
-    }
-}
+                Spacer(Modifier.height(8.dp))
 
-@Composable
-private fun ProcessingChart(chart: List<ChartEntry>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("Processing times by video", fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(8.dp))
+                val maxSeconds = chart.maxOfOrNull { it.seconds } ?: 1.0
+                val avgSeconds = chart.map { it.seconds }.average()
+                // Only use log scale if there's a clear outlier (>= 4x average)
+                val useLogScale = avgSeconds > 0 && maxSeconds >= 4.0 * avgSeconds
+                val scaleValue: (Double) -> Double = if (useLogScale) {
+                    { v -> kotlin.math.log10(1.0 + v) }
+                } else {
+                    { v -> v }
+                }
+                val scaleMax = scaleValue(maxSeconds)
 
-            val maxSeconds = chart.maxOfOrNull { it.seconds } ?: 1.0
-            val avgSeconds = chart.map { it.seconds }.average()
-            // Only use log scale if there's a clear outlier (>= 4x average)
-            val useLogScale = avgSeconds > 0 && maxSeconds >= 4.0 * avgSeconds
-            val scaleValue: (Double) -> Double = if (useLogScale) {
-                { v -> kotlin.math.log10(1.0 + v) }
-            } else {
-                { v -> v }
-            }
-            val scaleMax = scaleValue(maxSeconds)
+                // Extract hour from each entry's time for hour boundary markers
+                val hours = chart.map { it.time?.substringBefore(":")?.toIntOrNull() }
 
-            // Extract hour from each entry's time for hour boundary markers
-            val hours = chart.map { it.time?.substringBefore(":")?.toIntOrNull() }
-
-            // Y-axis max label above the chart
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "max: ${maxSeconds.fmt("%.0f")}s",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (useLogScale) {
-                    Spacer(Modifier.width(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "log scale",
+                        "max: ${maxSeconds.fmt("%.0f")}s",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-            Spacer(Modifier.height(2.dp))
-
-            val outlineArgb = MaterialTheme.colorScheme.outline.toAndroidColor()
-
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp),
-            ) {
-                val barWidth = size.width / chart.size.coerceAtLeast(1)
-                val dashPaint = android.graphics.Paint().apply {
-                    color = outlineArgb
-                    strokeWidth = 1f
-                    style = android.graphics.Paint.Style.STROKE
-                    pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f, 4f), 0f)
-                }
-
-                // Draw hour boundary lines
-                var lastHour: Int? = null
-                chart.forEachIndexed { i, _ ->
-                    val h = hours[i]
-                    if (h != null && h != lastHour && lastHour != null) {
-                        val x = i * barWidth
-                        drawContext.canvas.nativeCanvas.drawLine(x, 0f, x, size.height, dashPaint)
-                    }
-                    lastHour = h ?: lastHour
-                }
-
-                // Draw bars
-                chart.forEachIndexed { i, entry ->
-                    val scaledVal = scaleValue(entry.seconds)
-                    val barHeight = (scaledVal / scaleMax * size.height).toFloat()
-                    drawRect(
-                        color = statusColor(entry.status),
-                        topLeft = Offset(i * barWidth, size.height - barHeight),
-                        size = Size(barWidth - 1f, barHeight),
-                    )
-                }
-            }
-
-            // Hour labels below the chart
-            Spacer(Modifier.height(2.dp))
-            val hourBoundaries = mutableListOf<Pair<Int, Float>>() // hour to fraction
-            run {
-                var lastH: Int? = null
-                chart.forEachIndexed { i, _ ->
-                    val h = hours[i]
-                    if (h != null && h != lastH && lastH != null) {
-                        hourBoundaries.add(h to i.toFloat() / chart.size.coerceAtLeast(1))
-                    }
-                    lastH = h ?: lastH
-                }
-            }
-            if (hourBoundaries.isNotEmpty()) {
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val totalWidth = maxWidth
-                    hourBoundaries.forEach { (h, fraction) ->
+                    if (useLogScale) {
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            "${h}h",
+                            "log scale",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.offset(x = totalWidth * fraction - 8.dp),
+                            color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
+                }
+                Spacer(Modifier.height(2.dp))
+
+                val outlineArgb = MaterialTheme.colorScheme.outline.toAndroidColor()
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .pointerInput(chart.size) {
+                            detectTapGestures { offset ->
+                                val barWidth = size.width.toFloat() / chart.size.coerceAtLeast(1)
+                                val idx = (offset.x / barWidth).toInt().coerceIn(0, chart.size - 1)
+                                selectedIdx = if (selectedIdx == idx) null else idx
+                            }
+                        },
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val barWidth = size.width / chart.size.coerceAtLeast(1)
+                        val dashPaint = android.graphics.Paint().apply {
+                            color = outlineArgb
+                            strokeWidth = 1f
+                            style = android.graphics.Paint.Style.STROKE
+                            pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f, 4f), 0f)
+                        }
+
+                        // Draw hour boundary lines
+                        var lastHour: Int? = null
+                        chart.forEachIndexed { i, _ ->
+                            val h = hours[i]
+                            if (h != null && h != lastHour && lastHour != null) {
+                                val x = i * barWidth
+                                drawContext.canvas.nativeCanvas.drawLine(x, 0f, x, size.height, dashPaint)
+                            }
+                            lastHour = h ?: lastHour
+                        }
+
+                        // Draw bars
+                        chart.forEachIndexed { i, entry ->
+                            val scaledVal = scaleValue(entry.seconds)
+                            val barHeight = (scaledVal / scaleMax * size.height).toFloat()
+                            drawRect(
+                                color = statusColor(entry.status),
+                                topLeft = Offset(i * barWidth, size.height - barHeight),
+                                size = Size(barWidth - 1f, barHeight),
+                            )
+                        }
+
+                        // Selection highlight
+                        selectedIdx?.let { idx ->
+                            drawRect(
+                                color = Color.White,
+                                topLeft = Offset(idx * barWidth, 0f),
+                                size = Size((barWidth - 1f).coerceAtLeast(2f), size.height),
+                                style = Stroke(width = 2f),
+                            )
+                        }
+                    }
+                }
+
+                // Hour labels below the chart
+                Spacer(Modifier.height(2.dp))
+                val hourBoundaries = mutableListOf<Pair<Int, Float>>()
+                run {
+                    var lastH: Int? = null
+                    chart.forEachIndexed { i, _ ->
+                        val h = hours[i]
+                        if (h != null && h != lastH && lastH != null) {
+                            hourBoundaries.add(h to i.toFloat() / chart.size.coerceAtLeast(1))
+                        }
+                        lastH = h ?: lastH
+                    }
+                }
+                if (hourBoundaries.isNotEmpty()) {
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val totalWidth = maxWidth
+                        hourBoundaries.forEach { (h, fraction) ->
+                            Text(
+                                "${h}h",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.offset(x = totalWidth * fraction - 8.dp),
+                            )
+                        }
+                    }
+                }
+
+                // Selected bar details
+                selectedIdx?.let { idx ->
+                    val entry = chart.getOrNull(idx) ?: return@let
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        entry.basename,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    val parts = mutableListOf<String>()
+                    entry.time?.let { parts.add(it) }
+                    entry.status?.let { parts.add(it.replace("_", " ")) }
+                    parts.add("${entry.seconds.fmt("%.1f")}s")
+                    Text(
+                        parts.joinToString("  \u2022  "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

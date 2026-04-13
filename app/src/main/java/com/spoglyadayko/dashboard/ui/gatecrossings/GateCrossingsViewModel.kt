@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.spoglyadayko.dashboard.data.api.DashboardApi
 import com.spoglyadayko.dashboard.data.api.GateCrossingEntry
-import com.spoglyadayko.dashboard.data.api.GateCrossingsResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch

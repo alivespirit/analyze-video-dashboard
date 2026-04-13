@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import com.spoglyadayko.dashboard.MainActivity
-import com.spoglyadayko.dashboard.R
 import com.spoglyadayko.dashboard.data.api.DashboardApi
 import com.spoglyadayko.dashboard.data.preferences.SettingsStore
 import kotlinx.coroutines.*
