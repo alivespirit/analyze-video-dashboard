@@ -167,6 +167,7 @@ data class WorkerStats(
     @SerialName("memory_used_mb") val memoryUsedMb: Long? = null,
     @SerialName("memory_total_mb") val memoryTotalMb: Long? = null,
     @SerialName("cpu_temp_c") val cpuTempC: Double? = null,
+    @SerialName("offline_since") val offlineSince: String? = null,
 )
 
 @Serializable

@@ -173,6 +173,16 @@ private fun WorkerCard(worker: WorkerStats) {
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
+                if (worker.status != "ok" && worker.offlineSince != null) {
+                    Spacer(Modifier.width(8.dp))
+                    // Trim seconds for display: "HH:MM:SS" -> "HH:MM"
+                    val sinceShort = worker.offlineSince.substringBeforeLast(":")
+                    Text(
+                        "since $sinceShort",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
 
