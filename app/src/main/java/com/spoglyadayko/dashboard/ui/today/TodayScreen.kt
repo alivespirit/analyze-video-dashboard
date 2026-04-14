@@ -74,9 +74,11 @@ fun TodayScreen(
             }
             state.data != null -> {
                 val data = state.data!!
-                val videos = data.videos.reversed().let { list ->
-                    if (excludedStatuses.isEmpty()) list
-                    else list.filter { it.status !in excludedStatuses }
+                val videos = remember(data.videos, excludedStatuses) {
+                    data.videos.reversed().let { list ->
+                        if (excludedStatuses.isEmpty()) list
+                        else list.filter { it.status !in excludedStatuses }
+                    }
                 }
                 LazyColumn(
                     state = listState,
