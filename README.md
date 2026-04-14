@@ -1,4 +1,4 @@
-# Споглядайко Dashboard
+# <img src="app/src/main/ic_launcher-playstore.png" width="48" align="top"> Споглядайко Dashboard
 
 Android dashboard app for the [analyze-video](https://github.com/alivespirit/analyze-video) surveillance system.
 

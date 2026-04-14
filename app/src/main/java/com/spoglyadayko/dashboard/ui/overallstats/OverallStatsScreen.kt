@@ -269,7 +269,7 @@ private fun PerDayChart(perDay: List<DayStats>) {
                 )
                 day.mdAvg?.let {
                     Text(
-                        "MD avg: ${it.fmt("%.1f")}s" + (day.fullAvg?.let { f -> "  \u2022  Full avg: ${f.fmt("%.1f")}s" } ?: ""),
+                        "Motion Detection avg: ${it.fmt("%.1f")}s" + (day.fullAvg?.let { f -> "  \u2022  Full Processing avg: ${f.fmt("%.1f")}s" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -297,12 +297,12 @@ private fun ProcessingTimesChart(perDay: List<DayStats>) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).background(mdColor, RoundedCornerShape(2.dp)))
                     Spacer(Modifier.width(4.dp))
-                    Text("MD avg", style = MaterialTheme.typography.labelSmall)
+                    Text("Motion Detection avg", style = MaterialTheme.typography.labelSmall)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).background(fullColor, RoundedCornerShape(2.dp)))
                     Spacer(Modifier.width(4.dp))
-                    Text("Full avg", style = MaterialTheme.typography.labelSmall)
+                    Text("Full Processing avg", style = MaterialTheme.typography.labelSmall)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -384,8 +384,8 @@ private fun ProcessingTimesChart(perDay: List<DayStats>) {
                     color = MaterialTheme.colorScheme.primary,
                 )
                 val parts = mutableListOf<String>()
-                day.mdAvg?.let { parts.add("MD avg: ${it.fmt("%.1f")}s") }
-                day.fullAvg?.let { parts.add("Full avg: ${it.fmt("%.1f")}s") }
+                day.mdAvg?.let { parts.add("Motion Detection avg: ${it.fmt("%.1f")}s") }
+                day.fullAvg?.let { parts.add("Full Processing avg: ${it.fmt("%.1f")}s") }
                 if (parts.isNotEmpty()) {
                     Text(
                         parts.joinToString("  \u2022  "),

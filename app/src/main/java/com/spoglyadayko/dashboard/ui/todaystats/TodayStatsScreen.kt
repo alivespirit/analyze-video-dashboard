@@ -415,27 +415,27 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
             if (stats.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth()) {
-                    Text("", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                    Text("Min", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-                    Text("Avg", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-                    Text("Max", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                    Text("", modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.labelSmall)
+                    Text("Min", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                    Text("Avg", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                    Text("Max", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
                 if (stats.containsKey("md_avg")) {
                     Row(Modifier.fillMaxWidth()) {
-                        Text("MD", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                        Text(stats["md_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["md_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["md_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text("Motion Detection", modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Text(stats["md_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["md_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["md_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (stats.containsKey("full_avg")) {
                     Row(Modifier.fillMaxWidth()) {
-                        Text("Full", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                        Text(stats["full_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["full_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["full_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text("Full Processing", modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Text(stats["full_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["full_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["full_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
