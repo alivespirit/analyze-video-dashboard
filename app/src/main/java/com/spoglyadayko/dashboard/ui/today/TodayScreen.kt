@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spoglyadayko.dashboard.data.api.VideoSummary
 import com.spoglyadayko.dashboard.ui.theme.*
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,26 +28,33 @@ import org.koin.androidx.compose.koinViewModel
 fun TodayScreen(
     excludedStatuses: Set<String>,
     selectedDay: String?,
+    isActive: Boolean = true,
     onVideoClick: (String) -> Unit,
     viewModel: TodayViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(selectedDay) {
         viewModel.load(selectedDay)
+        listState.scrollToItem(0)
     }
 
-    // Scroll to top when new data arrives (after refresh or day change)
-    LaunchedEffect(state.data) {
-        if (state.data != null) {
+    // Refresh and scroll to top when switching to this tab
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            viewModel.refresh()
             listState.scrollToItem(0)
         }
     }
 
     PullToRefreshBox(
         isRefreshing = state.loading,
-        onRefresh = { viewModel.refresh() },
+        onRefresh = {
+            viewModel.refresh()
+            scope.launch { listState.scrollToItem(0) }
+        },
         modifier = Modifier.fillMaxSize(),
     ) {
         when {

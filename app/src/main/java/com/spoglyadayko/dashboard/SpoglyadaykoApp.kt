@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -233,16 +234,17 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
                 // Main swipeable tabs (always composed, hidden behind overlays)
-                if (!isOverlay) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxSize(),
-                        beyondViewportPageCount = 1,
-                    ) { page ->
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = if (isOverlay) Modifier.fillMaxSize().alpha(0f) else Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1,
+                    userScrollEnabled = !isOverlay,
+                ) { page ->
                         when (page) {
                             0 -> TodayScreen(
                                 excludedStatuses = excludedStatuses,
                                 selectedDay = selectedDay,
+                                isActive = pagerState.currentPage == 0,
                                 onVideoClick = { basename ->
                                     navController.navigate("video_detail/$basename")
                                 },
@@ -257,7 +259,6 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                             3 -> MonitoringScreen()
                         }
                     }
-                }
 
                 // Overlay navigation for detail/settings
                 NavHost(
