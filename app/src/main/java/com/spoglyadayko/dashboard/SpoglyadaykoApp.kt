@@ -155,7 +155,10 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                 TopAppBar(
                     title = {
                         when {
-                            isDetail -> Text("\u0412\u0456\u0434\u0435\u043E")
+                            isDetail -> Text(
+                                currentBackStackEntry?.arguments?.getString("basename") ?: "\u0412\u0456\u0434\u0435\u043E",
+                                maxLines = 1,
+                            )
                             isSettings -> Text("Settings")
                             isGateCrossings -> Text("\u0425\u0432\u0456\u0440\u0442\u043A\u0430")
                             else -> Image(
@@ -287,6 +290,9 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         Surface(modifier = Modifier.fillMaxSize()) {
                             com.spoglyadayko.dashboard.ui.gatecrossings.GateCrossingsScreen(
                                 day = selectedDay,
+                                onVideoClick = { basename ->
+                                    navController.navigate("video_detail/$basename")
+                                },
                             )
                         }
                     }

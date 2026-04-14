@@ -37,6 +37,7 @@ import org.koin.core.parameter.parametersOf
 @Composable
 fun GateCrossingsScreen(
     day: String?,
+    onVideoClick: ((String) -> Unit)? = null,
     viewModel: GateCrossingsViewModel = koinViewModel { parametersOf(day) },
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -141,6 +142,7 @@ fun GateCrossingsScreen(
                                 },
                                 onCopyToGallery = { url, target -> viewModel.copyToGallery(url, target) },
                                 onDismissMenu = { showMenu = false },
+                                onRowClick = onVideoClick?.let { click -> { click(item.entry.basename) } },
                             )
                         }
                     }
@@ -167,12 +169,14 @@ private fun GateCrossingRow(
     onCropLongClick: (String) -> Unit,
     onCopyToGallery: (String, String) -> Unit,
     onDismissMenu: () -> Unit,
+    onRowClick: (() -> Unit)? = null,
 ) {
     val entry = item.entry
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(8.dp),
+        onClick = { onRowClick?.invoke() },
     ) {
         Row(
             modifier = Modifier
