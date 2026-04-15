@@ -196,8 +196,34 @@ private fun GateCrossingRow(
                     fontSize = 13.sp,
                 )
 
-                // Direction arrow or status badge
-                if (entry.direction != null) {
+                // Direction arrow(s) with counts, or status badge
+                val up = entry.personsUp ?: 0
+                val down = entry.personsDown ?: 0
+                val hasCounts = entry.personsUp != null || entry.personsDown != null
+                val isSimpleSingle = hasCounts && (up + down == 1)
+
+                if (hasCounts && !isSimpleSingle) {
+                    // Show counts + arrows when more than one person crossed
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (up > 0) {
+                            Text(
+                                "$up\u2191",
+                                fontSize = 13.sp,
+                                color = AwayColor,
+                            )
+                        }
+                        if (down > 0) {
+                            Text(
+                                "$down\u2193",
+                                fontSize = 13.sp,
+                                color = BackColor,
+                            )
+                        }
+                    }
+                } else if (entry.direction != null) {
                     Text(
                         when (entry.direction) {
                             "up" -> "\u2191"

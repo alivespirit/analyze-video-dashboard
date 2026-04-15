@@ -220,6 +220,8 @@ data class GateCrossingEntry(
     val basename: String,
     val time: String? = null,
     val direction: String? = null,
+    @SerialName("persons_up") val personsUp: Int? = null,
+    @SerialName("persons_down") val personsDown: Int? = null,
     val status: String? = null,
     @SerialName("reid_matched") val reidMatched: Boolean? = null,
     @SerialName("reid_score") val reidScore: Double? = null,
