@@ -240,7 +240,11 @@ private fun GateCrossingRow(
                         shape = RoundedCornerShape(3.dp),
                     ) {
                         Text(
-                            entry.status.replace("_", " "),
+                            when (entry.status) {
+                                "significant_motion" -> "motion"
+                                "no_significant_motion" -> "no motion"
+                                else -> entry.status.replace("_", " ")
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),

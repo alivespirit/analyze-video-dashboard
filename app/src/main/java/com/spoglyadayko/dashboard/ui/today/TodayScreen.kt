@@ -3,6 +3,7 @@ package com.spoglyadayko.dashboard.ui.today
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -239,12 +240,23 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                     color = Color(0xFFFF6B00),
                     shape = RoundedCornerShape(4.dp),
                 ) {
-                    Text(
-                        "${video.speedKmh}km/h",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Speed,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = Color.White,
+                        )
+                        Text(
+                            "${video.speedKmh}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                        )
+                    }
                 }
             }
 
