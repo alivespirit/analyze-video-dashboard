@@ -32,8 +32,8 @@ import org.koin.androidx.compose.koinViewModel
 
 // All possible statuses in display order
 private val ALL_STATUSES = listOf(
-    "no_motion", "no_significant_motion", "no_person",
-    "significant_motion", "gate_crossing", "error",
+    "error", "no_motion", "no_significant_motion",
+    "no_person", "significant_motion", "gate_crossing",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
