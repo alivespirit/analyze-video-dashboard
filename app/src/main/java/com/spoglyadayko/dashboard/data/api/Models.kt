@@ -30,6 +30,7 @@ data class VideoSummary(
     @SerialName("away_back") val awayBack: String? = null,
     @SerialName("has_frames") val hasFrames: Boolean = false,
     @SerialName("speed_kmh") val speedKmh: Int? = null,
+    @SerialName("pipeline_error") val pipelineError: Boolean = false,
 )
 
 @Serializable

@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -157,6 +158,18 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            // Pipeline error marker: detect_motion succeeded but a later stage
+            // (Gemini / Telegram) logged an error.
+            if (video.pipelineError) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = "Pipeline error",
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
 
