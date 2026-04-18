@@ -2,12 +2,14 @@ package com.spoglyadayko.dashboard.ui.gatecrossings
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -30,6 +32,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.spoglyadayko.dashboard.ui.theme.*
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -42,6 +45,8 @@ fun GateCrossingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     // Fullscreen image state
     var fullscreenUrl by remember { mutableStateOf<String?>(null) }
@@ -111,7 +116,10 @@ fun GateCrossingsScreen(
     Box(Modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = state.loading,
-            onRefresh = { viewModel.load() },
+            onRefresh = {
+                viewModel.load()
+                scope.launch { listState.scrollToItem(0) }
+            },
             modifier = Modifier.fillMaxSize(),
         ) {
             when {
@@ -126,6 +134,7 @@ fun GateCrossingsScreen(
                 }
                 state.items.isNotEmpty() -> {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -294,21 +303,30 @@ private fun GateCrossingRow(
                 modifier = Modifier.weight(1f),
             ) {
                 item.cropUrls.forEach { cropUrl ->
+                    val isMatched = cropUrl.substringAfterLast('/').lowercase().endsWith("_m.jpg")
                     Box(modifier = Modifier.weight(1f)) {
+                        val imageModifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(0.6f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .let {
+                                if (isMatched) it.border(
+                                    width = 2.dp,
+                                    color = ReidMatched,
+                                    shape = RoundedCornerShape(6.dp),
+                                ) else it
+                            }
+                            .combinedClickable(
+                                onClick = { onCropClick(cropUrl) },
+                                onLongClick = { onCropLongClick(cropUrl) },
+                            )
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(cropUrl)
                                 .build(),
                             contentDescription = "ReID crop",
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(0.6f)
-                                .clip(RoundedCornerShape(6.dp))
-                                .combinedClickable(
-                                    onClick = { onCropClick(cropUrl) },
-                                    onLongClick = { onCropLongClick(cropUrl) },
-                                ),
+                            modifier = imageModifier,
                         )
                         DropdownMenu(
                             expanded = showMenu && menuCropUrl == cropUrl,
