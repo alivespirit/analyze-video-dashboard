@@ -155,18 +155,27 @@ class EventPollService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        // Try to fetch ReID crop for the video
+        // Try to fetch ReID crop for the video. The top-scored crop may be
+        // saved as "_reid_best1_m.jpg" (matched person) or plain
+        // "_reid_best1.jpg" (no ReID match), so try the matched suffix first
+        // and fall back to the unsuffixed name.
         val reidBitmap = videoBasename?.let { basename ->
-            try {
-                val stem = basename.substringBeforeLast(".")
-                val url = java.net.URL(api.imageUrl("/api/image/${stem}_reid_best1.jpg"))
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 3000
-                conn.readTimeout = 3000
-                if (conn.responseCode == 200) {
-                    android.graphics.BitmapFactory.decodeStream(conn.inputStream)
-                } else null
-            } catch (_: Exception) { null }
+            val stem = basename.substringBeforeLast(".")
+            val candidates = listOf(
+                "/api/image/${stem}_reid_best1_m.jpg",
+                "/api/image/${stem}_reid_best1.jpg",
+            )
+            candidates.firstNotNullOfOrNull { path ->
+                try {
+                    val url = java.net.URL(api.imageUrl(path))
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 3000
+                    conn.readTimeout = 3000
+                    if (conn.responseCode == 200) {
+                        android.graphics.BitmapFactory.decodeStream(conn.inputStream)
+                    } else null
+                } catch (_: Exception) { null }
+            }
         }
 
         val builder = Notification.Builder(this, EVENT_CHANNEL_ID)
