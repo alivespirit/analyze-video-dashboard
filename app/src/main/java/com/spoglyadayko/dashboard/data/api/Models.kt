@@ -227,5 +227,6 @@ data class GateCrossingEntry(
     @SerialName("reid_matched") val reidMatched: Boolean? = null,
     @SerialName("reid_score") val reidScore: Double? = null,
     @SerialName("reid_neg") val reidNeg: Double? = null,
+    @SerialName("away_back") val awayBack: String? = null,
     val crops: List<String> = emptyList(),
 )

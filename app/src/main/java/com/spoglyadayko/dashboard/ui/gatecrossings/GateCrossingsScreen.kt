@@ -293,6 +293,22 @@ private fun GateCrossingRow(
                         )
                     }
                 }
+
+                // Away/Back
+                if (entry.awayBack != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Surface(
+                        color = if (entry.awayBack == "away") AwayColor else BackColor,
+                        shape = RoundedCornerShape(3.dp),
+                    ) {
+                        Text(
+                            entry.awayBack,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.width(8.dp))
