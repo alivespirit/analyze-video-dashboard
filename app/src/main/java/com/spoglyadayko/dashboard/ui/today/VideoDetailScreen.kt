@@ -87,6 +87,79 @@ fun VideoDetailScreen(
         }
     }
 
+    // Gallery crop interactions from the logs tab
+    var fullscreenGalleryCrop by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    fullscreenGalleryCrop?.let { (target, filename) ->
+        Dialog(
+            onDismissRequest = { fullscreenGalleryCrop = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+            ) {
+                var scale by remember { mutableFloatStateOf(1f) }
+                var offset by remember { mutableStateOf(Offset.Zero) }
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(viewModel.galleryImageUrl(target, filename))
+                        .build(),
+                    contentDescription = "Gallery crop",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { if (scale <= 1f) fullscreenGalleryCrop = null }
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                offset = if (scale > 1f) Offset(offset.x + pan.x, offset.y + pan.y) else Offset.Zero
+                            }
+                        }
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offset.x,
+                            translationY = offset.y,
+                        ),
+                )
+                IconButton(
+                    onClick = { fullscreenGalleryCrop = null },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                }
+                Text(
+                    "$target / $filename",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(12.dp),
+                )
+            }
+        }
+    }
+
+    pendingDelete?.let { (target, filename) ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete from $target gallery?") },
+            text = { Text(filename) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteGalleryCrop(target, filename)
+                    pendingDelete = null
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+            },
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -115,7 +188,15 @@ fun VideoDetailScreen(
                         highlightUrl = state.highlightUrl,
                         playerViews = playerViews,
                     )
-                    "logs" -> LogsTab(state = state)
+                    "logs" -> LogsTab(
+                        state = state,
+                        onOpenGalleryCrop = { target, filename ->
+                            fullscreenGalleryCrop = target to filename
+                        },
+                        onDeleteGalleryCrop = { target, filename ->
+                            pendingDelete = target to filename
+                        },
+                    )
                     "crops" -> CropsTab(
                         state = state,
                         onCopyToGallery = { url, target -> viewModel.copyToGallery(url, target) },
@@ -221,8 +302,27 @@ private fun PlayerTab(
     }
 }
 
+private val GALLERY_CROP_RE = Regex("""gallery_crop=(\S+\.(?:jpg|jpeg|png))""", RegexOption.IGNORE_CASE)
+
+private data class GalleryCropMatch(val prefix: String, val filename: String, val target: String)
+
+/** Split log content into (leading text, gallery_crop filename, trailing text) if the
+ * line references a positive/negative gallery crop. Returns null otherwise. */
+private fun parseGalleryCrop(content: String): GalleryCropMatch? {
+    val match = GALLERY_CROP_RE.find(content) ?: return null
+    val filename = match.groupValues[1]
+    val before = content.substring(0, match.range.first + "gallery_crop=".length)
+    val target = if (before.contains("negative gallery", ignoreCase = true)) "negative" else "positive"
+    return GalleryCropMatch(prefix = before, filename = filename, target = target)
+}
+
+@OptIn(ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun LogsTab(state: VideoDetailUiState) {
+private fun LogsTab(
+    state: VideoDetailUiState,
+    onOpenGalleryCrop: (target: String, filename: String) -> Unit,
+    onDeleteGalleryCrop: (target: String, filename: String) -> Unit,
+) {
     if (state.logsLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -271,11 +371,37 @@ private fun LogsTab(state: VideoDetailUiState) {
                         color = MaterialTheme.colorScheme.tertiary,
                     )
                 }
-                Text(
-                    entry.content,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                val galleryMatch = parseGalleryCrop(entry.content)
+                if (galleryMatch == null) {
+                    Text(
+                        entry.content,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                } else {
+                    // Render prefix as plain text, filename as clickable (tap
+                    // opens fullscreen view, long-press prompts delete).
+                    androidx.compose.foundation.layout.FlowRow(
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            galleryMatch.prefix,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            galleryMatch.filename,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.combinedClickable(
+                                onClick = { onOpenGalleryCrop(galleryMatch.target, galleryMatch.filename) },
+                                onLongClick = { onDeleteGalleryCrop(galleryMatch.target, galleryMatch.filename) },
+                            ),
+                        )
+                    }
+                }
             }
         }
     }

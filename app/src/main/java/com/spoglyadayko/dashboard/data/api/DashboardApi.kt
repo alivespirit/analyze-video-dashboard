@@ -89,6 +89,13 @@ class DashboardApi(private val baseUrlProvider: () -> String) {
         }.body()
     }
 
+    fun galleryImageUrl(target: String, filename: String): String =
+        "$baseUrl/api/gallery/$target/$filename"
+
+    suspend fun deleteGalleryCrop(target: String, filename: String) {
+        client.delete("$baseUrl/api/gallery/$target/$filename")
+    }
+
     fun videoUrl(basename: String): String = "$baseUrl/video/$basename"
 
     fun imageUrl(path: String): String = "$baseUrl$path"

@@ -113,4 +113,22 @@ class VideoDetailViewModel(
     fun clearCopyResult() {
         _uiState.value = _uiState.value.copy(copyResult = null)
     }
+
+    fun galleryImageUrl(target: String, filename: String): String =
+        api.galleryImageUrl(target, filename)
+
+    fun deleteGalleryCrop(target: String, filename: String) {
+        viewModelScope.launch {
+            try {
+                api.deleteGalleryCrop(target, filename)
+                _uiState.value = _uiState.value.copy(
+                    copyResult = "Deleted $filename from $target gallery",
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    copyResult = "Delete failed: ${e.message}",
+                )
+            }
+        }
+    }
 }
