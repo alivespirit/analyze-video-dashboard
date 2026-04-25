@@ -40,7 +40,7 @@ data class TabDef(val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
     TabDef("Сьогодні", Icons.Default.Today),
-    TabDef("Статистика", Icons.Default.BarChart),
+    TabDef("Події", Icons.Default.VideoLibrary),
     TabDef("Загалом", Icons.Default.Timeline),
     TabDef("Моніторинг", Icons.Default.Monitor),
 )
@@ -241,19 +241,19 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     userScrollEnabled = !isOverlay,
                 ) { page ->
                         when (page) {
-                            0 -> TodayScreen(
-                                excludedStatuses = excludedStatuses,
-                                selectedDay = selectedDay,
-                                isActive = pagerState.currentPage == 0,
-                                onVideoClick = { basename ->
-                                    navController.navigate("video_detail/$basename")
-                                },
-                            )
-                            1 -> TodayStatsScreen(
+                            0 -> TodayStatsScreen(
                                 excludedStatuses = excludedStatuses,
                                 selectedDay = selectedDay,
                                 onExcludedChanged = { scope.launch { settingsStore.setExcludedStatuses(it) } },
                                 onGateCrossingsClick = { navController.navigate("gate_crossings") },
+                            )
+                            1 -> TodayScreen(
+                                excludedStatuses = excludedStatuses,
+                                selectedDay = selectedDay,
+                                isActive = pagerState.currentPage == 1,
+                                onVideoClick = { basename ->
+                                    navController.navigate("video_detail/$basename")
+                                },
                             )
                             2 -> OverallStatsScreen()
                             3 -> MonitoringScreen()

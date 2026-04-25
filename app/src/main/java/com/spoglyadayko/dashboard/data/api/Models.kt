@@ -66,6 +66,12 @@ data class ReidCropsResponse(
 )
 
 @Serializable
+data class VideoPoseClipsResponse(
+    val basename: String,
+    val clips: List<String>,
+)
+
+@Serializable
 data class TodayStatsResponse(
     val day: String,
     @SerialName("videos_total") val videosTotal: Int,

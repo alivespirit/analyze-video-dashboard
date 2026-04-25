@@ -9,8 +9,13 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+
+private const val PLAYER_CONTROLS_TIMEOUT_FAST_MS = 350
+private const val PLAYER_CONTROLS_TIMEOUT_NORMAL_MS = 2200
+private const val PLAYER_CONTROLS_FAST_PHASE_MS = 1200
 
 class FullscreenPlayerActivity : ComponentActivity() {
 
@@ -38,6 +43,9 @@ class FullscreenPlayerActivity : ComponentActivity() {
 
         val playerView = PlayerView(this).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
+            controllerAutoShow = true
+            controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_NORMAL_MS
+            setControllerHideOnTouch(true)
         }
         setContentView(playerView)
 
@@ -56,6 +64,22 @@ class FullscreenPlayerActivity : ComponentActivity() {
             it.seekTo(position)
             it.playWhenReady = true
             playerView.player = it
+
+            val listener = object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) {
+                        playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_FAST_MS
+                        playerView.postDelayed({
+                            if (playerView.player === it) {
+                                playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_NORMAL_MS
+                            }
+                        }, PLAYER_CONTROLS_FAST_PHASE_MS.toLong())
+                    } else {
+                        playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_NORMAL_MS
+                    }
+                }
+            }
+            it.addListener(listener)
         }
 
         playerView.setFullscreenButtonClickListener { finish() }

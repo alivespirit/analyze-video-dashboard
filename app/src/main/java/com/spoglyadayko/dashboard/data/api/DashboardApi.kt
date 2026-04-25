@@ -53,6 +53,9 @@ class DashboardApi(private val baseUrlProvider: () -> String) {
     suspend fun getVideoFrames(basename: String): VideoFramesResponse =
         client.get("$baseUrl/api/today/video/$basename/frames").body()
 
+    suspend fun getVideoPoseClips(basename: String): VideoPoseClipsResponse =
+        client.get("$baseUrl/api/today/video/$basename/pose").body()
+
     suspend fun getVideoHighlight(basename: String): VideoHighlightResponse =
         client.get("$baseUrl/api/today/video/$basename/highlight").body()
 

@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +38,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
@@ -46,6 +49,46 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 private data class TabDef(val title: String, val key: String)
+
+private const val PLAYER_CONTROLS_TIMEOUT_FAST_MS = 300
+private const val PLAYER_CONTROLS_TIMEOUT_NORMAL_MS = 1500
+private const val PLAYER_CONTROLS_FAST_PHASE_MS = 1000
+
+private fun configurePlayerViewAutoHide(playerView: PlayerView, player: ExoPlayer) {
+    // Two-phase behavior:
+    // - right after playback starts: hide controls very quickly,
+    // - during normal playback interactions: keep controls visible a bit longer.
+    playerView.controllerAutoShow = true
+    playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_NORMAL_MS
+    playerView.setControllerHideOnTouch(true)
+
+    val listener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
+                playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_FAST_MS
+                playerView.postDelayed({
+                    if (playerView.player === player) {
+                        playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_NORMAL_MS
+                    }
+                }, PLAYER_CONTROLS_FAST_PHASE_MS.toLong())
+            } else {
+                playerView.controllerShowTimeoutMs = PLAYER_CONTROLS_TIMEOUT_NORMAL_MS
+            }
+        }
+    }
+    player.addListener(listener)
+
+    playerView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: View) = Unit
+        override fun onViewDetachedFromWindow(v: View) {
+            try {
+                player.removeListener(listener)
+            } catch (_: Exception) {
+            }
+            playerView.removeOnAttachStateChangeListener(this)
+        }
+    })
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -68,12 +111,13 @@ fun VideoDetailScreen(
     }
 
     BackHandler(onBack = hidePlayersAndGoBack)
-    val tabs = remember(state.crops, state.frames, state.cropsLoading, state.framesLoading) {
+    val tabs = remember(state.crops, state.frames, state.poseClips, state.cropsLoading, state.framesLoading, state.poseLoading) {
         buildList {
             add(TabDef("Logs", "logs"))
             add(TabDef("Player", "player"))
             if (state.crops.isNotEmpty()) add(TabDef("Crops", "crops"))
             if (state.frames.isNotEmpty()) add(TabDef("Frames", "frames"))
+            if (state.poseClips.isNotEmpty()) add(TabDef("Pose", "pose"))
         }
     }
 
@@ -202,6 +246,10 @@ fun VideoDetailScreen(
                         onCopyToGallery = { url, target -> viewModel.copyToGallery(url, target) },
                     )
                     "frames" -> FramesTab(state = state)
+                    "pose" -> PoseTab(
+                        poseClipUrls = state.poseClips,
+                        playerViews = playerViews,
+                    )
                 }
             }
         }
@@ -255,6 +303,7 @@ private fun PlayerTab(
                     factory = { ctx ->
                         PlayerView(ctx).also { pv ->
                             pv.player = highlightPlayer
+                            configurePlayerViewAutoHide(pv, highlightPlayer)
                             pv.setFullscreenButtonClickListener {
                                 FullscreenPlayerActivity.launch(ctx, highlightUrl!!, highlightPlayer.currentPosition)
                             }
@@ -284,6 +333,7 @@ private fun PlayerTab(
                 factory = { ctx ->
                     PlayerView(ctx).also { pv ->
                         pv.player = fullPlayer
+                        configurePlayerViewAutoHide(pv, fullPlayer)
                         pv.setFullscreenButtonClickListener {
                             FullscreenPlayerActivity.launch(ctx, videoUrl, fullPlayer.currentPosition)
                         }
@@ -297,6 +347,96 @@ private fun PlayerTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PoseTab(
+    poseClipUrls: List<String>,
+    playerViews: MutableList<View>,
+) {
+    val context = LocalContext.current
+
+    if (poseClipUrls.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No pose clips", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+
+    var selectedIdx by remember(poseClipUrls) { mutableIntStateOf(0) }
+    val posePlayer = remember {
+        ExoPlayer.Builder(context).build()
+    }
+
+    LaunchedEffect(poseClipUrls, selectedIdx) {
+        val safeIdx = selectedIdx.coerceIn(0, poseClipUrls.lastIndex)
+        if (safeIdx != selectedIdx) selectedIdx = safeIdx
+        posePlayer.setMediaItem(MediaItem.fromUri(poseClipUrls[safeIdx]))
+        posePlayer.prepare()
+    }
+
+    DisposableEffect(posePlayer) {
+        onDispose {
+            posePlayer.release()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 16.dp),
+    ) {
+        Text(
+            "Pose ${selectedIdx + 1} of ${poseClipUrls.size}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            poseClipUrls.indices.forEach { idx ->
+                FilterChip(
+                    selected = idx == selectedIdx,
+                    onClick = { selectedIdx = idx },
+                    label = { Text("Pose ${idx + 1}") },
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).also { pv ->
+                        pv.player = posePlayer
+                        configurePlayerViewAutoHide(pv, posePlayer)
+                        pv.setFullscreenButtonClickListener {
+                            val idx = selectedIdx.coerceIn(0, poseClipUrls.lastIndex)
+                            FullscreenPlayerActivity.launch(ctx, poseClipUrls[idx], posePlayer.currentPosition)
+                        }
+                        pv.layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        )
+                        playerViews.add(pv)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f),
             )
         }
     }

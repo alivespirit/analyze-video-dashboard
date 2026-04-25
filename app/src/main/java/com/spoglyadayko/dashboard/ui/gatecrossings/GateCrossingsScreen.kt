@@ -47,6 +47,7 @@ fun GateCrossingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    var pendingScrollToTopAfterRefresh by remember { mutableStateOf(false) }
 
     // Fullscreen image state
     var fullscreenUrl by remember { mutableStateOf<String?>(null) }
@@ -58,6 +59,14 @@ fun GateCrossingsScreen(
         state.copyResult?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearCopyResult()
+        }
+    }
+
+    // Scroll after refresh has finished so newly inserted items are laid out.
+    LaunchedEffect(state.loading, state.items.size, pendingScrollToTopAfterRefresh) {
+        if (pendingScrollToTopAfterRefresh && !state.loading && state.items.isNotEmpty()) {
+            listState.scrollToItem(0)
+            pendingScrollToTopAfterRefresh = false
         }
     }
 
@@ -117,8 +126,8 @@ fun GateCrossingsScreen(
         PullToRefreshBox(
             isRefreshing = state.loading,
             onRefresh = {
+                pendingScrollToTopAfterRefresh = true
                 viewModel.load()
-                scope.launch { listState.scrollToItem(0) }
             },
             modifier = Modifier.fillMaxSize(),
         ) {

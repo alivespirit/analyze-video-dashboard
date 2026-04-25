@@ -15,9 +15,11 @@ data class VideoDetailUiState(
     val logs: List<LogEntry> = emptyList(),
     val crops: List<String> = emptyList(),
     val frames: List<String> = emptyList(),
+    val poseClips: List<String> = emptyList(),
     val logsLoading: Boolean = true,
     val cropsLoading: Boolean = true,
     val framesLoading: Boolean = true,
+    val poseLoading: Boolean = true,
     val highlightLoading: Boolean = true,
     val error: String? = null,
     val copyResult: String? = null,
@@ -41,6 +43,7 @@ class VideoDetailViewModel(
         loadLogs()
         loadCrops()
         loadFrames()
+        loadPoseClips()
         loadHighlight()
     }
 
@@ -90,6 +93,18 @@ class VideoDetailViewModel(
                 _uiState.value = _uiState.value.copy(highlightUrl = url, highlightLoading = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(highlightLoading = false)
+            }
+        }
+    }
+
+    private fun loadPoseClips() {
+        viewModelScope.launch {
+            try {
+                val resp = api.getVideoPoseClips(_uiState.value.basename)
+                val urls = resp.clips.map { api.highlightUrl(it) }
+                _uiState.value = _uiState.value.copy(poseClips = urls, poseLoading = false)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(poseLoading = false)
             }
         }
     }
