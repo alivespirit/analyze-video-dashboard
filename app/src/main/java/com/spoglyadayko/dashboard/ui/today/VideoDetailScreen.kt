@@ -111,10 +111,11 @@ fun VideoDetailScreen(
     }
 
     BackHandler(onBack = hidePlayersAndGoBack)
-    val tabs = remember(state.crops, state.frames, state.poseClips, state.cropsLoading, state.framesLoading, state.poseLoading) {
+    val hasPlayerMedia = (state.highlightUrl != null) || (state.videoUrl != null)
+    val tabs = remember(state.crops, state.frames, state.poseClips, state.cropsLoading, state.framesLoading, state.poseLoading, hasPlayerMedia) {
         buildList {
             add(TabDef("Logs", "logs"))
-            add(TabDef("Player", "player"))
+            if (hasPlayerMedia) add(TabDef("Player", "player"))
             if (state.crops.isNotEmpty()) add(TabDef("Crops", "crops"))
             if (state.frames.isNotEmpty()) add(TabDef("Frames", "frames"))
             if (state.poseClips.isNotEmpty()) add(TabDef("Pose", "pose"))
@@ -258,7 +259,7 @@ fun VideoDetailScreen(
 
 @Composable
 private fun PlayerTab(
-    videoUrl: String,
+    videoUrl: String?,
     highlightUrl: String?,
     playerViews: MutableList<View>,
 ) {
@@ -273,17 +274,19 @@ private fun PlayerTab(
         }
     }
 
-    val fullPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
-            prepare()
+    val fullPlayer = remember(videoUrl) {
+        videoUrl?.let {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(it))
+                prepare()
+            }
         }
     }
 
     DisposableEffect(Unit) {
         onDispose {
             highlightPlayer?.release()
-            fullPlayer.release()
+            fullPlayer?.release()
         }
     }
 
@@ -322,32 +325,34 @@ private fun PlayerTab(
             }
         }
 
-        item {
-            Text(
-                "Full video",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).also { pv ->
-                        pv.player = fullPlayer
-                        configurePlayerViewAutoHide(pv, fullPlayer)
-                        pv.setFullscreenButtonClickListener {
-                            FullscreenPlayerActivity.launch(ctx, videoUrl, fullPlayer.currentPosition)
+        if (fullPlayer != null && videoUrl != null) {
+            item {
+                Text(
+                    "Full video",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).also { pv ->
+                            pv.player = fullPlayer
+                            configurePlayerViewAutoHide(pv, fullPlayer)
+                            pv.setFullscreenButtonClickListener {
+                                FullscreenPlayerActivity.launch(ctx, videoUrl, fullPlayer.currentPosition)
+                            }
+                            pv.layoutParams = FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                            )
+                            playerViews.add(pv)
                         }
-                        pv.layoutParams = FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                        )
-                        playerViews.add(pv)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f),
-            )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f),
+                )
+            }
         }
     }
 }

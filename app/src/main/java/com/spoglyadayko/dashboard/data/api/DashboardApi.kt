@@ -59,6 +59,9 @@ class DashboardApi(private val baseUrlProvider: () -> String) {
     suspend fun getVideoHighlight(basename: String): VideoHighlightResponse =
         client.get("$baseUrl/api/today/video/$basename/highlight").body()
 
+    suspend fun getVideoFull(basename: String): VideoFullResponse =
+        client.get("$baseUrl/api/today/video/$basename/full").body()
+
     fun highlightUrl(path: String): String = "$baseUrl$path"
 
     suspend fun getTodayStats(day: String? = null): TodayStatsResponse {

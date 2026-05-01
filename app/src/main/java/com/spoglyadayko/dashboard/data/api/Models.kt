@@ -54,6 +54,12 @@ data class VideoHighlightResponse(
 )
 
 @Serializable
+data class VideoFullResponse(
+    val basename: String,
+    @SerialName("video_url") val videoUrl: String? = null,
+)
+
+@Serializable
 data class VideoFramesResponse(
     val basename: String,
     val frames: List<String>,

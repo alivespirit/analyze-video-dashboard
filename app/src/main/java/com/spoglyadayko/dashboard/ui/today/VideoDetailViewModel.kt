@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 
 data class VideoDetailUiState(
     val basename: String = "",
-    val videoUrl: String = "",
+    val videoUrl: String? = null,
     val highlightUrl: String? = null,
     val logs: List<LogEntry> = emptyList(),
     val crops: List<String> = emptyList(),
@@ -21,6 +21,7 @@ data class VideoDetailUiState(
     val framesLoading: Boolean = true,
     val poseLoading: Boolean = true,
     val highlightLoading: Boolean = true,
+    val fullVideoLoading: Boolean = true,
     val error: String? = null,
     val copyResult: String? = null,
 )
@@ -34,7 +35,6 @@ class VideoDetailViewModel(
     private val _uiState = MutableStateFlow(
         VideoDetailUiState(
             basename = basename,
-            videoUrl = api.videoUrl(basename),
         )
     )
     val uiState: StateFlow<VideoDetailUiState> = _uiState
@@ -45,6 +45,7 @@ class VideoDetailViewModel(
         loadFrames()
         loadPoseClips()
         loadHighlight()
+        loadFullVideo()
     }
 
     private fun loadLogs() {
@@ -93,6 +94,18 @@ class VideoDetailViewModel(
                 _uiState.value = _uiState.value.copy(highlightUrl = url, highlightLoading = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(highlightLoading = false)
+            }
+        }
+    }
+
+    private fun loadFullVideo() {
+        viewModelScope.launch {
+            try {
+                val resp = api.getVideoFull(_uiState.value.basename)
+                val url = resp.videoUrl?.let { api.highlightUrl(it) }
+                _uiState.value = _uiState.value.copy(videoUrl = url, fullVideoLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(videoUrl = null, fullVideoLoading = false)
             }
         }
     }
