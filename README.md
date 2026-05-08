@@ -4,15 +4,16 @@ Android dashboard app for the [analyze-video](https://github.com/alivespirit/ana
 
 ## Features
 
-- **Today** — Per-video summary with status, gate direction, ReID scores, processing time, frames indicator, worker/local indicator. Tap to view video (with highlight clip), logs, ReID crops, and insignificant/no_person frames. Swipe between tabs.
-- **Today's Stats** — Status counts with tap-to-exclude filter (persistent across restarts), gate crossings (tap to open Хвіртка page), processing time chart (log scale with hour markers), away/back intervals.
-- **Хвіртка** — Gate area overview: all videos with ReID crops shown with timestamps, direction arrows, match scores, and crop thumbnails. Tap crops for fullscreen zoom, long-press to copy to gallery.
+- **Today's Stats** (first tab) — Status counts with tap-to-exclude filter (persistent across restarts), gate crossings (tap to open Хвіртка page), processing time chart (log scale with hour markers), away/back intervals.
+- **Події** (second tab, VideoLibrary icon) — Per-video summary with status, gate direction, ReID scores, processing time, frames indicator, worker/local indicator, speed pill, and a pipeline-error warning icon when post-detection stages (Gemini/Telegram) failed. Tap to open the video detail screen.
+- **Video detail** — Tabbed view: Logs, Player (highlight + full video, both lazy-loaded), Crops, Frames, and Pose. The Player tab is hidden when neither highlight nor full video is available; the Pose tab appears only when pose clips exist for the video. Player controls use a two-phase auto-hide (fast right after playback starts, slower for subsequent interactions). Log lines that reference `gallery_crop=<file>` render the filename as a clickable link — tap to view the gallery reference fullscreen, long-press to delete it from the positive/negative gallery.
+- **Хвіртка** — Gate area overview: all videos with ReID crops shown with timestamps, direction arrows or per-direction person counts (`N↑` / `N↓`) when multiple people crossed, match scores, away/back chip, and crop thumbnails (matched-person crops outlined in the ReID-match color). Tap crops for fullscreen zoom, long-press to copy to positive/negative gallery. Pull-to-refresh defers the scroll-to-top until newly fetched items have been laid out.
 - **Overall Stats** — Per-day video counts (selectable bars), processing times per day chart, weekday heatmaps for away/back events (tap cells for details).
 - **Monitoring** — Master CPU/RAM/battery, worker status/load/CPU temp/RAM/battery, recent processing ledger. Auto-refreshes every 15 seconds.
-- **Notifications** — Foreground service showing current home/away status ("Вдома з 14:05" / "Десь там з 10:15"). Away/back event alerts with ReID crop image preview. Tap notification to open the corresponding video.
+- **Notifications** — Foreground service showing current home/away status ("Вдома з 14:05" / "Десь там з 10:15"). Away/back event alerts with ReID crop image preview (tries the matched-person `_m` crop first, falls back to the unsuffixed crop). Tap notification to open the corresponding video.
 - **Date navigation** — Calendar icon in top bar to switch between available log days. Only days with logs are selectable.
 - **Light/Dark theme** — Auto-matches device theme, or manually selectable (Auto/Light/Dark) in Settings.
-- **ReID gallery management** — Long-press ReID crops to copy to positive or negative gallery.
+- **ReID gallery management** — Long-press ReID crops to copy to positive or negative gallery; long-press a `gallery_crop=` link in the logs to delete that reference image from the gallery.
 
 ## Prerequisites
 
@@ -21,7 +22,7 @@ Android dashboard app for the [analyze-video](https://github.com/alivespirit/ana
 3. On your Android phone:
    - Settings > About > tap "Build number" 7 times to enable Developer Options
    - Developer Options > enable "USB debugging"
-4. The master must be running with `ENABLE_LOG_DASHBOARD=true` and the JSON API endpoints available (requires the updated `tools/log_dashboard/app.py`)
+4. The master must be running [analyze-video v8.0.0](https://github.com/alivespirit/analyze-video/releases/tag/v8.0.0) or newer with `ENABLE_LOG_DASHBOARD=true` (this version introduced the pose, full-video, and gallery management endpoints consumed by the app).
 
 ## Build & Install
 
@@ -51,24 +52,28 @@ In the app, tap the gear icon (Settings):
 
 ## Server-Side API Endpoints
 
-The master needs the updated `tools/log_dashboard/app.py` with these JSON API endpoints:
+The master must be running analyze-video v8.0.0 or newer (`tools/log_dashboard/app.py`), exposing these JSON API endpoints:
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/days` | List of available log days (YYYY-MM-DD) |
-| `GET /api/today/videos?day=` | Video summary list with status, ReID, frames indicator |
+| `GET /api/today/videos?day=` | Video summary list with status, ReID, frames indicator, speed, `pipeline_error` |
 | `GET /api/today/video/{basename}/logs?day=` | Log entries per video |
-| `GET /api/today/video/{basename}/reid-crops` | ReID crop image URLs |
+| `GET /api/today/video/{basename}/reid-crops` | ReID crop image URLs (matched-person crops use the `_m.jpg` suffix) |
 | `GET /api/today/video/{basename}/frames` | Insignificant/no_person frame URLs |
 | `GET /api/today/video/{basename}/highlight` | Highlight clip URL if available |
-| `GET /api/today/gate-crossings?day=` | Videos with ReID crops (gate area overview) |
+| `GET /api/today/video/{basename}/pose` | Pose clip URLs (when POSE_ENABLED on the master) |
+| `GET /api/today/video/{basename}/full` | Full source video URL — only returned if the source file currently exists on disk |
+| `GET /api/today/gate-crossings?day=` | Videos with ReID crops, including `persons_up` / `persons_down` and `away_back` |
 | `GET /api/today/stats?day=` | Today's aggregated stats |
 | `GET /api/stats/overall` | Overall stats with heatmaps |
 | `GET /api/monitoring` | System monitoring (CPU, RAM, battery, worker health) |
 | `GET /api/events/latest?since=` | Away/back events for notifications |
 | `POST /api/reid/copy` | Copy ReID crop to positive/negative gallery |
+| `GET /api/gallery/{target}/{filename}` | Serve a positive/negative gallery reference crop |
+| `DELETE /api/gallery/{target}/{filename}` | Delete a gallery reference crop (ReID embedding cache rebuilds automatically on the next run) |
 | `GET /api/image/{basename}` | Serve image files (crops, frames) |
-| `GET /api/highlight/{basename}` | Serve highlight clips |
+| `GET /api/highlight/{basename}` | Serve highlight and pose clips |
 | `GET /video/{basename}` | Serve full video files |
 
 The worker also needs the updated `/health` endpoint (in `worker/server.py`) that includes load average, RAM stats, and CPU temperature.
