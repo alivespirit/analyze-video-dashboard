@@ -79,6 +79,9 @@ class DashboardApi(private val baseUrlProvider: () -> String) {
     suspend fun getOverallStats(): OverallStatsResponse =
         client.get("$baseUrl/api/stats/overall").body()
 
+    suspend fun getReIDStats(): ReIDStatsResponse =
+        client.get("$baseUrl/api/stats/reid").body()
+
     suspend fun getMonitoring(): MonitoringResponse =
         client.get("$baseUrl/api/monitoring").body()
 

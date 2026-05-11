@@ -138,6 +138,14 @@ data class WeekdayHeatmap(
     @SerialName("weekday_day_counts") val weekdayDayCounts: List<Int>,
     @SerialName("away_counts") val awayCounts: List<List<Int>>,
     @SerialName("back_counts") val backCounts: List<List<Int>>,
+    @SerialName("away_occurrences") val awayOccurrences: List<List<List<HeatmapOccurrence>>> = emptyList(),
+    @SerialName("back_occurrences") val backOccurrences: List<List<List<HeatmapOccurrence>>> = emptyList(),
+)
+
+@Serializable
+data class HeatmapOccurrence(
+    val date: String,
+    val hhmmss: String = "",
 )
 
 @Serializable
@@ -220,6 +228,47 @@ data class ReidCopyRequest(
 data class ReidCopyResponse(
     val status: String,
     val destination: String? = null,
+)
+
+@Serializable
+data class ReIDStatsResponse(
+    val totals: ReIDTotals,
+    @SerialName("per_day") val perDay: List<ReIDDayStats>,
+    @SerialName("moving_avg_7d") val movingAvg7d: List<ReIDMovingAvgPoint>,
+)
+
+@Serializable
+data class ReIDTotals(
+    val tp: Int,
+    val fp: Int,
+    val fn: Int,
+    val videos: Int,
+    val precision: Double? = null,
+    val recall: Double? = null,
+    val f1: Double? = null,
+    @SerialName("score_avg") val scoreAvg: Double? = null,
+)
+
+@Serializable
+data class ReIDDayStats(
+    val date: String,
+    val tp: Int,
+    val fp: Int,
+    val fn: Int,
+    val videos: Int,
+    val precision: Double? = null,
+    val recall: Double? = null,
+    val f1: Double? = null,
+    @SerialName("score_avg") val scoreAvg: Double? = null,
+)
+
+@Serializable
+data class ReIDMovingAvgPoint(
+    val date: String,
+    val precision: Double? = null,
+    val recall: Double? = null,
+    val f1: Double? = null,
+    @SerialName("score_avg") val scoreAvg: Double? = null,
 )
 
 @Serializable
