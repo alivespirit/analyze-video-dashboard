@@ -51,7 +51,15 @@ class OverallStatsViewModel(
                     runCatching { api.getReIDStats() }.getOrNull()
                 }
                 val overall = overallDeferred.await()
-                val reid = reidDeferred.await()
+                val reid = reidDeferred.await()?.let { r ->
+                    // Resolve relative crop paths to full URLs once, so the UI
+                    // doesn't need to know the API base.
+                    r.copy(perDay = r.perDay.map { day ->
+                        day.copy(events = day.events.map { ev ->
+                            ev.copy(cropUrl = ev.cropUrl?.let { api.imageUrl(it) })
+                        })
+                    })
+                }
                 _uiState.value = OverallStatsUiState(
                     loading = false,
                     data = overall,

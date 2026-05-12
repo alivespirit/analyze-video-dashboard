@@ -260,6 +260,16 @@ data class ReIDDayStats(
     val recall: Double? = null,
     val f1: Double? = null,
     @SerialName("score_avg") val scoreAvg: Double? = null,
+    val events: List<ReIDEvent> = emptyList(),
+)
+
+@Serializable
+data class ReIDEvent(
+    val video: String,
+    val hhmmss: String = "",
+    val kind: String, // "TP" | "FP" | "FN" | "FPFN"
+    val score: Double? = null,
+    @SerialName("crop_url") val cropUrl: String? = null,
 )
 
 @Serializable

@@ -1,13 +1,17 @@
 package com.spoglyadayko.dashboard.ui.overallstats
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -21,9 +25,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spoglyadayko.dashboard.data.api.DayStats
-import com.spoglyadayko.dashboard.data.api.EventsHeatmap
 import com.spoglyadayko.dashboard.data.api.ReIDDayStats
-import com.spoglyadayko.dashboard.data.api.ReIDMovingAvgPoint
+import com.spoglyadayko.dashboard.data.api.ReIDEvent
 import com.spoglyadayko.dashboard.data.api.ReIDStatsResponse
 import com.spoglyadayko.dashboard.data.api.WeekdayHeatmap
 import com.spoglyadayko.dashboard.ui.theme.*
@@ -33,7 +36,10 @@ import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OverallStatsScreen(viewModel: OverallStatsViewModel = koinViewModel()) {
+fun OverallStatsScreen(
+    onVideoClick: (basename: String, day: String) -> Unit = { _, _ -> },
+    viewModel: OverallStatsViewModel = koinViewModel(),
+) {
     val state by viewModel.uiState.collectAsState()
 
     PullToRefreshBox(
@@ -69,6 +75,7 @@ fun OverallStatsScreen(viewModel: OverallStatsViewModel = koinViewModel()) {
                                     reid = reid,
                                     rangeLabel = reidRange,
                                     onRangeChange = viewModel::setReidRange,
+                                    onVideoClick = onVideoClick,
                                 )
                             }
                         }
@@ -122,91 +129,6 @@ fun OverallStatsScreen(viewModel: OverallStatsViewModel = koinViewModel()) {
     }
 }
 
-@Composable
-private fun HeatmapCard(title: String, heatmap: EventsHeatmap) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(title, fontWeight = FontWeight.Medium)
-            Text(
-                "${heatmap.daysCount} days analyzed",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            val maxVal = maxOf(
-                heatmap.awayDays.maxOrNull() ?: 0,
-                heatmap.backDays.maxOrNull() ?: 0,
-                1,
-            )
-
-            // Away row
-            Text("Away", style = MaterialTheme.typography.labelSmall, color = AwayColor)
-            HeatmapRow(
-                values = heatmap.awayDays,
-                maxVal = maxVal,
-                color = AwayColor,
-                binsPerHour = 60 / heatmap.binMinutes,
-                startHour = heatmap.startOffset / 60,
-            )
-            Spacer(Modifier.height(4.dp))
-
-            // Back row
-            Text("Back", style = MaterialTheme.typography.labelSmall, color = BackColor)
-            HeatmapRow(
-                values = heatmap.backDays,
-                maxVal = maxVal,
-                color = BackColor,
-                binsPerHour = 60 / heatmap.binMinutes,
-                startHour = heatmap.startOffset / 60,
-            )
-
-            Spacer(Modifier.height(4.dp))
-            // Hour labels
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            ) {
-                val hours = (heatmap.startOffset / 60) until (heatmap.startOffset / 60 + heatmap.bins / (60 / heatmap.binMinutes))
-                hours.forEach { h ->
-                    Text(
-                        "${h}h",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width((300.dp / hours.count()).coerceAtLeast(16.dp)),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeatmapRow(
-    values: List<Int>,
-    maxVal: Int,
-    color: Color,
-    binsPerHour: Int,
-    startHour: Int,
-) {
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(24.dp),
-    ) {
-        val cellWidth = size.width / values.size.coerceAtLeast(1)
-        values.forEachIndexed { i, v ->
-            val alpha = if (maxVal > 0) v.toFloat() / maxVal else 0f
-            drawRect(
-                color = color.copy(alpha = alpha.coerceIn(0.05f, 1f)),
-                topLeft = Offset(i * cellWidth, 0f),
-                size = Size(cellWidth - 1f, size.height),
-            )
-        }
-    }
-}
 
 @Composable
 private fun PerDayChart(
@@ -616,13 +538,13 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
                                 drawRect(
                                     color = color.copy(alpha = alpha.coerceIn(0.05f, 1f)),
                                     topLeft = Offset(i * cellWidth, 0f),
-                                    size = Size(cellWidth - 1f, size.height),
+                                    size = Size(cellWidth, size.height),
                                 )
                                 if (isSelected) {
                                     drawRect(
                                         color = Color.White,
                                         topLeft = Offset(i * cellWidth, 0f),
-                                        size = Size(cellWidth - 1f, size.height),
+                                        size = Size(cellWidth, size.height),
                                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f),
                                     )
                                 }
@@ -685,13 +607,16 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun ReIDAccuracyCard(
     reid: ReIDStatsResponse,
     rangeLabel: String,
     onRangeChange: (String) -> Unit,
+    onVideoClick: (basename: String, day: String) -> Unit,
 ) {
     val precisionColor = Color(0xFF3B82F6) // blue
     val recallColor = Color(0xFFF59E0B)    // amber
+    val scoreColor = Color(0xFF14B8A6)     // teal
     val selectionColor = MaterialTheme.colorScheme.primary
     val rangeOptions = remember {
         listOf(
@@ -705,8 +630,9 @@ private fun ReIDAccuracyCard(
     var selectedIdx by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(rangeLabel) { selectedIdx = null }
     var helpExpanded by remember { mutableStateOf(false) }
+    var showPrecision by remember { mutableStateOf(true) }
+    var showRecall by remember { mutableStateOf(true) }
     var showScore by remember { mutableStateOf(false) }
-    val scoreColor = Color(0xFF14B8A6) // teal — distinct from precision/recall
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -751,21 +677,23 @@ private fun ReIDAccuracyCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // Legend (Match score is tap-to-toggle; others are static).
-            Row(
+            // Series toggles — all three behave the same (tap to show/hide line).
+            androidx.compose.foundation.layout.FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).background(precisionColor, RoundedCornerShape(2.dp)))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Precision", style = MaterialTheme.typography.labelSmall)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).background(recallColor, RoundedCornerShape(2.dp)))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Recall", style = MaterialTheme.typography.labelSmall)
-                }
+                LegendChip(
+                    label = "Precision",
+                    color = precisionColor,
+                    selected = showPrecision,
+                    onClick = { showPrecision = !showPrecision },
+                )
+                LegendChip(
+                    label = "Recall",
+                    color = recallColor,
+                    selected = showRecall,
+                    onClick = { showRecall = !showRecall },
+                )
                 LegendChip(
                     label = "Match score (dashed)",
                     color = scoreColor,
@@ -773,14 +701,8 @@ private fun ReIDAccuracyCard(
                     onClick = { showScore = !showScore },
                 )
             }
-            Text(
-                "7-day MA bold, daily faint.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Spacer(Modifier.height(8.dp))
 
-            Spacer(Modifier.height(6.dp))
             RangeChips(
                 options = rangeOptions,
                 selected = range,
@@ -812,7 +734,7 @@ private fun ReIDAccuracyCard(
                     val step = w / perDay.size.coerceAtLeast(1)
                     val xCenter = { i: Int -> i * step + step / 2f }
 
-                    // Gridlines at y=0.25, 0.5, 0.75, 1.0 (values map: 1.0 -> top, 0 -> bottom)
+                    // Gridlines at y=0.25, 0.5, 0.75, 1.0 (1.0 -> top, 0 -> bottom).
                     val gridColor = Color.White.copy(alpha = 0.12f)
                     listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { v ->
                         val y = h - (v * h)
@@ -823,21 +745,25 @@ private fun ReIDAccuracyCard(
                         )
                     }
 
-                    // Daily faint lines
-                    drawSeries(
-                        values = perDay.map { it.precision },
-                        xCenter = xCenter,
-                        height = h,
-                        color = precisionColor.copy(alpha = 0.30f),
-                        strokeWidth = 2f,
-                    )
-                    drawSeries(
-                        values = perDay.map { it.recall },
-                        xCenter = xCenter,
-                        height = h,
-                        color = recallColor.copy(alpha = 0.30f),
-                        strokeWidth = 2f,
-                    )
+                    // Daily faint lines for each enabled series.
+                    if (showPrecision) {
+                        drawSeries(
+                            values = perDay.map { it.precision },
+                            xCenter = xCenter,
+                            height = h,
+                            color = precisionColor.copy(alpha = 0.30f),
+                            strokeWidth = 2f,
+                        )
+                    }
+                    if (showRecall) {
+                        drawSeries(
+                            values = perDay.map { it.recall },
+                            xCenter = xCenter,
+                            height = h,
+                            color = recallColor.copy(alpha = 0.30f),
+                            strokeWidth = 2f,
+                        )
+                    }
                     if (showScore) {
                         drawSeriesDashed(
                             values = perDay.map { it.scoreAvg },
@@ -848,21 +774,25 @@ private fun ReIDAccuracyCard(
                         )
                     }
 
-                    // 7-day moving average (bold)
-                    drawSeries(
-                        values = movingAvg.map { it.precision },
-                        xCenter = xCenter,
-                        height = h,
-                        color = precisionColor,
-                        strokeWidth = 4f,
-                    )
-                    drawSeries(
-                        values = movingAvg.map { it.recall },
-                        xCenter = xCenter,
-                        height = h,
-                        color = recallColor,
-                        strokeWidth = 4f,
-                    )
+                    // 7-day moving average (bold).
+                    if (showPrecision) {
+                        drawSeries(
+                            values = movingAvg.map { it.precision },
+                            xCenter = xCenter,
+                            height = h,
+                            color = precisionColor,
+                            strokeWidth = 4f,
+                        )
+                    }
+                    if (showRecall) {
+                        drawSeries(
+                            values = movingAvg.map { it.recall },
+                            xCenter = xCenter,
+                            height = h,
+                            color = recallColor,
+                            strokeWidth = 4f,
+                        )
+                    }
                     if (showScore) {
                         drawSeriesDashed(
                             values = movingAvg.map { it.scoreAvg },
@@ -873,11 +803,9 @@ private fun ReIDAccuracyCard(
                         )
                     }
 
-                    // Selection highlight: translucent band + bold primary line + dots
+                    // Selection highlight: translucent band + line + dots on enabled series.
                     selectedIdx?.let { i ->
                         val xc = xCenter(i)
-                        // Translucent band the full bin width so the selection is
-                        // visible even when there are many narrow bars.
                         val bandW = step.coerceAtLeast(6f)
                         drawRect(
                             color = selectionColor.copy(alpha = 0.18f),
@@ -896,12 +824,11 @@ private fun ReIDAccuracyCard(
                             drawCircle(color = Color.White, radius = 7f, center = Offset(xc, y))
                             drawCircle(color = color, radius = 5.5f, center = Offset(xc, y))
                         }
-                        dotAt(movingAvg.map { it.precision }, precisionColor)
-                        dotAt(movingAvg.map { it.recall }, recallColor)
+                        if (showPrecision) dotAt(movingAvg.map { it.precision }, precisionColor)
+                        if (showRecall) dotAt(movingAvg.map { it.recall }, recallColor)
                         if (showScore) dotAt(movingAvg.map { it.scoreAvg }, scoreColor)
                     }
 
-                    // Y-axis labels
                     val paint = android.graphics.Paint().apply {
                         this.color = labelArgb
                         textSize = 22f
@@ -915,10 +842,11 @@ private fun ReIDAccuracyCard(
             Spacer(Modifier.height(4.dp))
             DayLabelsRow(perDay.map { it.date })
 
+            // Selected day: details text + recognition strip for that day's events.
             selectedIdx?.let { idx ->
                 val day = perDay.getOrNull(idx) ?: return@let
                 val ma = movingAvg.getOrNull(idx)
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     day.date,
                     style = MaterialTheme.typography.bodySmall,
@@ -926,8 +854,8 @@ private fun ReIDAccuracyCard(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 val parts = mutableListOf<String>()
-                day.precision?.let { parts.add("P: ${it.fmt("%.2f")}") }
-                day.recall?.let { parts.add("R: ${it.fmt("%.2f")}") }
+                if (showPrecision) day.precision?.let { parts.add("P: ${it.fmt("%.2f")}") }
+                if (showRecall) day.recall?.let { parts.add("R: ${it.fmt("%.2f")}") }
                 day.f1?.let { parts.add("F1: ${it.fmt("%.2f")}") }
                 if (showScore) day.scoreAvg?.let { parts.add("Score: ${it.fmt("%.2f")}") }
                 parts.add("TP/FP/FN: ${day.tp}/${day.fp}/${day.fn}")
@@ -938,8 +866,8 @@ private fun ReIDAccuracyCard(
                 )
                 if (ma != null) {
                     val maParts = mutableListOf<String>()
-                    ma.precision?.let { maParts.add("P: ${it.fmt("%.2f")}") }
-                    ma.recall?.let { maParts.add("R: ${it.fmt("%.2f")}") }
+                    if (showPrecision) ma.precision?.let { maParts.add("P: ${it.fmt("%.2f")}") }
+                    if (showRecall) ma.recall?.let { maParts.add("R: ${it.fmt("%.2f")}") }
                     ma.f1?.let { maParts.add("F1: ${it.fmt("%.2f")}") }
                     if (showScore) ma.scoreAvg?.let { maParts.add("Score: ${it.fmt("%.2f")}") }
                     if (maParts.isNotEmpty()) {
@@ -950,9 +878,222 @@ private fun ReIDAccuracyCard(
                         )
                     }
                 }
+
+                Spacer(Modifier.height(8.dp))
+                SelectedDayWall(day = day, onVideoClick = onVideoClick)
             }
         }
     }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun SelectedDayWall(
+    day: ReIDDayStats,
+    onVideoClick: (basename: String, day: String) -> Unit,
+) {
+    // Outcome legend (matches thumbnail border colours).
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        WallLegend("Recognized", EventTpColor)
+        WallLegend("Auto missed", EventFnColor)
+        WallLegend("Auto wrong + manual", EventFpfnColor)
+        WallLegend("False alarm", EventFpColor)
+    }
+
+    Spacer(Modifier.height(6.dp))
+
+    if (day.events.isEmpty()) {
+        Text(
+            "No reaction events recorded on this day.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    // Size thumbnails from the actual available width so exactly 4 fit per
+    // row regardless of screen size. 3:4 portrait, 6dp gaps. A custom Layout
+    // avoids BoxWithConstraints subcomposition and the false-positive
+    // UnusedBoxWithConstraintsScope lint that the heuristic can't see through.
+    val gapDp = 6.dp
+    androidx.compose.ui.layout.Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            day.events.forEach { ev ->
+                EventThumbnail(
+                    ev = ev,
+                    onClick = { onVideoClick(ev.video, day.date) },
+                )
+            }
+        },
+    ) { measurables, constraints ->
+        val gapPx = gapDp.roundToPx()
+        val totalWidth = constraints.maxWidth
+        val cellWidth = ((totalWidth - 3 * gapPx) / 4).coerceAtLeast(0)
+        val cellHeight = cellWidth * 4 / 3
+        val childConstraints = androidx.compose.ui.unit.Constraints.fixed(cellWidth, cellHeight)
+        val placeables = measurables.map { it.measure(childConstraints) }
+        val rows = if (placeables.isEmpty()) 0 else (placeables.size + 3) / 4
+        val totalHeight = rows * cellHeight + (rows - 1).coerceAtLeast(0) * gapPx
+        layout(totalWidth, totalHeight) {
+            placeables.forEachIndexed { i, p ->
+                val col = i % 4
+                val row = i / 4
+                p.placeRelative(
+                    x = col * (cellWidth + gapPx),
+                    y = row * (cellHeight + gapPx),
+                )
+            }
+        }
+    }
+}
+
+private val EventTpColor = Color(0xFF22C55E)   // green — auto correct
+private val EventFnColor = Color(0xFFEAB308)   // yellow — auto missed
+private val EventFpColor = Color(0xFFEF4444)   // red — auto wrong (false alarm)
+private val EventFpfnColor = Color(0xFFFB923C) // orange — auto wrong + manually added
+
+@Composable
+private fun EventThumbnail(
+    ev: ReIDEvent,
+    onClick: () -> Unit,
+) {
+    val borderColor = when (ev.kind) {
+        "TP" -> EventTpColor
+        "FN" -> EventFnColor
+        "FP" -> EventFpColor
+        "FPFN" -> EventFpfnColor
+        else -> Color.Gray
+    }
+    val shape = RoundedCornerShape(8.dp)
+    // Size is provided by the parent Layout via fixed constraints in
+    // SelectedDayWall, so we just fill the slot.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(shape)
+            .border(BorderStroke(2.5.dp, borderColor), shape)
+            .clickable(onClick = onClick),
+    ) {
+        if (ev.cropUrl != null) {
+            AsyncImage(
+                model = ev.cropUrl,
+                contentDescription = "ReID crop ${ev.kind}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(borderColor.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    when (ev.kind) {
+                        "TP" -> "✓"
+                        "FN" -> "?"
+                        "FP" -> "✕"
+                        "FPFN" -> "!"
+                        else -> ""
+                    },
+                    color = borderColor,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        // Score badge in the bottom-right corner.
+        ev.score?.let { s ->
+            Text(
+                ".%02d".format((s * 100).toInt().coerceIn(0, 99)),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .background(
+                        Color.Black.copy(alpha = 0.6f),
+                        RoundedCornerShape(topStart = 4.dp),
+                    )
+                    .padding(horizontal = 3.dp, vertical = 1.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WallLegend(label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .border(BorderStroke(2.dp, color), RoundedCornerShape(3.dp)),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+// Draws a solid polyline through defined points, breaking on nulls.
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSeries(
+    values: List<Double?>,
+    xCenter: (Int) -> Float,
+    height: Float,
+    color: Color,
+    strokeWidth: Float,
+) {
+    var prev: Offset? = null
+    values.forEachIndexed { i, v ->
+        if (v == null) {
+            prev = null
+            return@forEachIndexed
+        }
+        val y = height - (v.toFloat().coerceIn(0f, 1f) * height)
+        val cur = Offset(xCenter(i), y)
+        prev?.let { p ->
+            drawLine(color = color, start = p, end = cur, strokeWidth = strokeWidth)
+        }
+        prev = cur
+    }
+}
+
+// Dashed polyline: built as a single Path so the dash pattern stays continuous
+// across segments rather than resetting per-segment.
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSeriesDashed(
+    values: List<Double?>,
+    xCenter: (Int) -> Float,
+    height: Float,
+    color: Color,
+    strokeWidth: Float,
+) {
+    val path = androidx.compose.ui.graphics.Path()
+    var moved = false
+    values.forEachIndexed { i, v ->
+        if (v == null) {
+            moved = false
+            return@forEachIndexed
+        }
+        val y = height - (v.toFloat().coerceIn(0f, 1f) * height)
+        val x = xCenter(i)
+        if (!moved) {
+            path.moveTo(x, y)
+            moved = true
+        } else {
+            path.lineTo(x, y)
+        }
+    }
+    drawPath(
+        path = path,
+        color = color,
+        style = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = strokeWidth,
+            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                floatArrayOf(10f, 6f),
+            ),
+        ),
+    )
 }
 
 @Composable
@@ -999,15 +1140,23 @@ private fun ReIDHelpBlock() {
             color = subdued,
         )
         Text(
-            "TP = auto-detection confirmed (kept). FP = auto-detection removed as wrong. " +
-                "FN = auto missed it, added manually.",
+            "Chart: solid bold lines are the 7-day moving average; faint thin lines are the raw " +
+                "daily values. Tap legend chips above the range buttons to show/hide a series.",
             style = bodyStyle,
             color = subdued,
         )
-        Text("Match score (optional, dashed) — average ReID cosine score.", style = labelStyle)
         Text(
-            "Averaged over videos where the person of interest actually crossed (TP + FN). " +
-                "Trending up means the gallery is improving; trending down suggests new appearances " +
+            "Tap any day on the chart to see that day's ReID crops below. Border colour = outcome: " +
+                "green = recognized correctly (TP), yellow = auto missed it, marked manually (FN), " +
+                "orange = auto fired wrongly but you also marked manually (FPFN), red = false alarm " +
+                "(FP). The number in the corner is the ReID match score (.81 = 0.81 cosine " +
+                "similarity).",
+            style = bodyStyle,
+            color = subdued,
+        )
+        Text("Match score — average ReID cosine score over TP + FN + FPFN.", style = labelStyle)
+        Text(
+            "Trending up means the gallery is improving; trending down hints at new appearances " +
                 "(clothing, lighting) the gallery doesn't yet cover.",
             style = bodyStyle,
             color = subdued,
@@ -1032,66 +1181,6 @@ private fun ReIDMetricBlock(label: String, value: Double?, color: Color) {
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSeries(
-    values: List<Double?>,
-    xCenter: (Int) -> Float,
-    height: Float,
-    color: Color,
-    strokeWidth: Float,
-) {
-    // Draw a polyline through defined points, breaking on nulls.
-    var prev: Offset? = null
-    values.forEachIndexed { i, v ->
-        if (v == null) {
-            prev = null
-            return@forEachIndexed
-        }
-        val y = height - (v.toFloat().coerceIn(0f, 1f) * height)
-        val cur = Offset(xCenter(i), y)
-        prev?.let { p ->
-            drawLine(color = color, start = p, end = cur, strokeWidth = strokeWidth)
-        }
-        prev = cur
-    }
-}
-
-// Dashed variant: builds a single Path so the dash pattern remains continuous
-// across segments. Breaks on nulls (starts a fresh sub-path).
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSeriesDashed(
-    values: List<Double?>,
-    xCenter: (Int) -> Float,
-    height: Float,
-    color: Color,
-    strokeWidth: Float,
-) {
-    val path = androidx.compose.ui.graphics.Path()
-    var moved = false
-    values.forEachIndexed { i, v ->
-        if (v == null) {
-            moved = false
-            return@forEachIndexed
-        }
-        val y = height - (v.toFloat().coerceIn(0f, 1f) * height)
-        val x = xCenter(i)
-        if (!moved) {
-            path.moveTo(x, y)
-            moved = true
-        } else {
-            path.lineTo(x, y)
-        }
-    }
-    drawPath(
-        path = path,
-        color = color,
-        style = androidx.compose.ui.graphics.drawscope.Stroke(
-            width = strokeWidth,
-            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                floatArrayOf(10f, 6f),
-            ),
-        ),
-    )
-}
-
 /**
  * Evenly-spaced day labels across the full width of the chart.
  * Picks ~7 labels max so they don't overlap.
@@ -1101,18 +1190,34 @@ private fun DayLabelsRow(days: List<String>) {
     if (days.isEmpty()) return
     val maxLabels = 7
     val step = (days.size.toFloat() / maxLabels).coerceAtLeast(1f)
-    val indices = (0 until maxLabels).map { (it * step).toInt().coerceAtMost(days.lastIndex) }.distinct()
+    val indices = (0 until maxLabels)
+        .map { (it * step).toInt().coerceAtMost(days.lastIndex) }
+        .distinct()
 
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val totalWidth = maxWidth
-        indices.forEach { idx ->
-            val fraction = idx.toFloat() / days.size.coerceAtLeast(1)
-            Text(
-                days[idx].takeLast(5),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.offset(x = totalWidth * fraction),
-            )
+    // Custom Layout — same reason as SelectedDayWall: BoxWithConstraints
+    // here triggers the UnusedBoxWithConstraintsScope lint false-positive.
+    androidx.compose.ui.layout.Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            indices.forEach { idx ->
+                Text(
+                    days[idx].takeLast(5),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+    ) { measurables, constraints ->
+        val placeables = measurables.map {
+            it.measure(constraints.copy(minWidth = 0, maxWidth = Int.MAX_VALUE))
+        }
+        val totalWidth = constraints.maxWidth
+        val rowHeight = placeables.maxOfOrNull { it.height } ?: 0
+        layout(totalWidth, rowHeight) {
+            placeables.forEachIndexed { i, p ->
+                val fraction = indices[i].toFloat() / days.size.coerceAtLeast(1)
+                p.placeRelative((totalWidth * fraction).toInt(), 0)
+            }
         }
     }
 }

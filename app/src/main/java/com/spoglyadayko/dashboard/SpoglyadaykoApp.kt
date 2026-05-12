@@ -255,7 +255,13 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                                     navController.navigate("video_detail/$basename")
                                 },
                             )
-                            2 -> OverallStatsScreen()
+                            2 -> OverallStatsScreen(
+                                onVideoClick = { basename, day ->
+                                    // Pass day through the route so we don't have to mutate
+                                    // the global day picker just to open one detail screen.
+                                    navController.navigate("video_detail/$basename?day=$day")
+                                },
+                            )
                             3 -> MonitoringScreen()
                         }
                     }
@@ -270,14 +276,24 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         // Transparent placeholder — pager shows through
                     }
                     composable(
-                        "video_detail/{basename}",
-                        arguments = listOf(navArgument("basename") { type = NavType.StringType }),
+                        "video_detail/{basename}?day={day}",
+                        arguments = listOf(
+                            navArgument("basename") { type = NavType.StringType },
+                            navArgument("day") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
                     ) { backStackEntry ->
                         val basename = backStackEntry.arguments?.getString("basename") ?: return@composable
+                        // Day from the route wins; falls back to the global picker for
+                        // callers that don't pass one (e.g. Today / Gate crossings tabs).
+                        val day = backStackEntry.arguments?.getString("day") ?: selectedDay
                         Surface(modifier = Modifier.fillMaxSize()) {
                             VideoDetailScreen(
                                 basename = basename,
-                                day = selectedDay,
+                                day = day,
                                 onBack = { navController.popBackStack() },
                             )
                         }
