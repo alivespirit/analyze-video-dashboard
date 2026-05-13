@@ -82,11 +82,12 @@ All endpoints hit the master server's log dashboard (`/api/*`). Base URL is conf
 | `GET /api/today/video/{basename}/reid-crops` | ReID crop image URLs |
 | `GET /api/today/video/{basename}/frames` | Insignificant/no_person frame URLs |
 | `GET /api/today/video/{basename}/highlight` | Highlight clip URL |
-| `GET /api/today/stats?day=` | Aggregated day stats |
+| `GET /api/today/stats?day=` | Aggregated day stats; today's open away intervals include elapsed `dur` and an `ongoing` flag |
 | `GET /api/today/gate-crossings?day=` | Gate crossing videos with crops |
-| `GET /api/stats/overall` | Overall stats with heatmaps |
+| `GET /api/stats/overall` | Overall stats with heatmaps; weekday/time-of-day heatmaps use cache-extended history beyond log retention, weekday cells include per-bin `away_occurrences` / `back_occurrences` |
+| `GET /api/stats/reid` | ReID auto-detection accuracy per day: TP/FP/FN, precision/recall/F1, average match score, 7-day MA. Each per-day entry also returns `events: [{video, hhmmss, kind: TP\|FP\|FN\|FPFN, score, crop_url}]` for the recognition-wall view |
 | `GET /api/monitoring` | System monitoring data |
-| `GET /api/events/latest?since=` | Away/back events for notifications |
+| `GET /api/events/latest?since=` | Away/back events for notifications. May include `next_prediction: {kind, predicted_hhmm, confidence, basis_count, basis_total, imminent}` when the same-weekday pattern has ≥4 samples, ≥30% confidence, and the predicted time is within a 3-hour horizon |
 | `POST /api/reid/copy` | Copy ReID crop to pos/neg gallery |
 | `GET /api/image/{path}` | Serve crop/frame images |
 | `GET /api/highlight/{path}` | Serve highlight clips |
