@@ -207,7 +207,18 @@ data class EventsLatestResponse(
     val events: List<EventEntry>,
     @SerialName("current_status") val currentStatus: String? = null,
     @SerialName("current_status_since") val currentStatusSince: String? = null,
+    @SerialName("next_prediction") val nextPrediction: NextPrediction? = null,
     @SerialName("server_ts") val serverTs: String,
+)
+
+@Serializable
+data class NextPrediction(
+    val kind: String, // "away" | "back"
+    @SerialName("predicted_hhmm") val predictedHhmm: String,
+    val confidence: Double,
+    @SerialName("basis_count") val basisCount: Int,
+    @SerialName("basis_total") val basisTotal: Int,
+    val imminent: Boolean = false,
 )
 
 @Serializable

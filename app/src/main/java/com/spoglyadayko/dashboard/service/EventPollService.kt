@@ -99,7 +99,7 @@ class EventPollService : Service() {
             var lastTs: String? = null
             try {
                 val initial = service.api.getEventsLatest(since = "00:00")
-                service.updateStatusNotification(initial.currentStatus, initial.currentStatusSince)
+                service.updateStatusNotification(initial.currentStatus, initial.currentStatusSince, initial.nextPrediction)
                 lastTs = initial.serverTs
                 service.settings.setLastEventTs(initial.serverTs)
             } catch (_: Exception) {}
@@ -112,7 +112,7 @@ class EventPollService : Service() {
                     val resp = service.api.getEventsLatest(since = lastTs)
 
                     // Update persistent notification with current status
-                    service.updateStatusNotification(resp.currentStatus, resp.currentStatusSince)
+                    service.updateStatusNotification(resp.currentStatus, resp.currentStatusSince, resp.nextPrediction)
 
                     // Post individual event notifications with unique IDs
                     resp.events.forEach { event ->
@@ -134,11 +134,30 @@ class EventPollService : Service() {
         }
     }
 
-    private fun updateStatusNotification(status: String?, since: String?) {
+    private fun updateStatusNotification(
+        status: String?,
+        since: String?,
+        prediction: com.spoglyadayko.dashboard.data.api.NextPrediction? = null,
+    ) {
         val hhmm = since?.substringBeforeLast(":")
-        val statusText = when (status) {
+        val base = when (status) {
             "home" -> "Вдома з ${hhmm ?: "?"}"
             "away" -> "Десь там з ${hhmm ?: "?"}"
+            else -> null
+        }
+        val predictionText = prediction?.let { p ->
+            val pct = (p.confidence * 100).toInt()
+            val verb = when (p.kind) {
+                "away" -> if (p.imminent) "може піде найближчим часом" else "може піде о ${p.predictedHhmm}"
+                "back" -> if (p.imminent) "може повернеться найближчим часом" else "може повернеться о ${p.predictedHhmm}"
+                else -> null
+            }
+            verb?.let { "$it ($pct%)" }
+        }
+        val statusText = when {
+            base != null && predictionText != null -> "$base, $predictionText"
+            base != null -> base
+            predictionText != null -> predictionText.replaceFirstChar { it.uppercase() }
             else -> null
         }
         val nm = getSystemService(NotificationManager::class.java)
