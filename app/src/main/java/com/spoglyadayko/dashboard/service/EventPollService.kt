@@ -22,6 +22,12 @@ class EventPollService : Service() {
     private var pollingJob: Job? = null
     private var nextEventNotificationId = EVENT_NOTIFICATION_BASE_ID
 
+    // Cached so a repeat `onStartCommand` (e.g. when the user taps the
+    // notification and MainActivity re-starts the service) doesn't reset the
+    // foreground notification to the default placeholder until the next poll.
+    @Volatile
+    private var lastStatusText: String? = null
+
     companion object {
         const val STATUS_CHANNEL_ID = "spoglyadayko_status"
         const val EVENT_CHANNEL_ID = "spoglyadayko_events"
@@ -35,7 +41,7 @@ class EventPollService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = buildStatusNotification(null)
+        val notification = buildStatusNotification(lastStatusText)
         startForeground(STATUS_NOTIFICATION_ID, notification)
         // Only start polling once — ignore duplicate startService calls
         if (pollingJob?.isActive != true) {
@@ -160,6 +166,8 @@ class EventPollService : Service() {
             predictionText != null -> predictionText.replaceFirstChar { it.uppercase() }
             else -> null
         }
+        // Cache so onStartCommand reuses it instead of resetting to placeholder.
+        statusText?.let { lastStatusText = it }
         val nm = getSystemService(NotificationManager::class.java)
         nm.notify(STATUS_NOTIFICATION_ID, buildStatusNotification(statusText))
     }
