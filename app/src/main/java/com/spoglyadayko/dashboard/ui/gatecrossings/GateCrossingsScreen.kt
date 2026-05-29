@@ -1,38 +1,28 @@
 package com.spoglyadayko.dashboard.ui.gatecrossings
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import com.spoglyadayko.dashboard.ui.components.FullscreenImageDialog
 import com.spoglyadayko.dashboard.ui.theme.*
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -72,54 +62,11 @@ fun GateCrossingsScreen(
 
     // Fullscreen zoomable dialog
     fullscreenUrl?.let { url ->
-        Dialog(
-            onDismissRequest = { fullscreenUrl = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black),
-            ) {
-                var scale by remember { mutableFloatStateOf(1f) }
-                var offset by remember { mutableStateOf(Offset.Zero) }
-
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(url)
-                        .size(coil3.size.Size.ORIGINAL)
-                        .build(),
-                    contentDescription = "Crop fullscreen",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { if (scale <= 1f) fullscreenUrl = null }
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                if (scale > 1f) {
-                                    offset = Offset(offset.x + pan.x, offset.y + pan.y)
-                                } else {
-                                    offset = Offset.Zero
-                                }
-                            }
-                        }
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offset.x,
-                            translationY = offset.y,
-                        ),
-                )
-
-                IconButton(
-                    onClick = { fullscreenUrl = null },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                }
-            }
-        }
+        FullscreenImageDialog(
+            imageUrl = url,
+            onDismiss = { fullscreenUrl = null },
+            contentDescription = "Crop fullscreen",
+        )
     }
 
     Box(Modifier.fillMaxSize()) {

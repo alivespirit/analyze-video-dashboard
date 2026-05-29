@@ -5,10 +5,8 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -20,29 +18,23 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import com.spoglyadayko.dashboard.ui.components.FullscreenImageDialog
 import com.spoglyadayko.dashboard.ui.theme.severityColor
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -54,6 +46,7 @@ private const val PLAYER_CONTROLS_TIMEOUT_FAST_MS = 300
 private const val PLAYER_CONTROLS_TIMEOUT_NORMAL_MS = 1500
 private const val PLAYER_CONTROLS_FAST_PHASE_MS = 1000
 
+@androidx.annotation.OptIn(UnstableApi::class)
 private fun configurePlayerViewAutoHide(playerView: PlayerView, player: ExoPlayer) {
     // Two-phase behavior:
     // - right after playback starts: hide controls very quickly,
@@ -137,55 +130,12 @@ fun VideoDetailScreen(
     var pendingDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     fullscreenGalleryCrop?.let { (target, filename) ->
-        Dialog(
-            onDismissRequest = { fullscreenGalleryCrop = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black),
-            ) {
-                var scale by remember { mutableFloatStateOf(1f) }
-                var offset by remember { mutableStateOf(Offset.Zero) }
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(viewModel.galleryImageUrl(target, filename))
-                        .build(),
-                    contentDescription = "Gallery crop",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { if (scale <= 1f) fullscreenGalleryCrop = null }
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                offset = if (scale > 1f) Offset(offset.x + pan.x, offset.y + pan.y) else Offset.Zero
-                            }
-                        }
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offset.x,
-                            translationY = offset.y,
-                        ),
-                )
-                IconButton(
-                    onClick = { fullscreenGalleryCrop = null },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                }
-                Text(
-                    "$target / $filename",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(12.dp),
-                )
-            }
-        }
+        FullscreenImageDialog(
+            imageUrl = viewModel.galleryImageUrl(target, filename),
+            onDismiss = { fullscreenGalleryCrop = null },
+            contentDescription = "Gallery crop",
+            label = "$target / $filename",
+        )
     }
 
     pendingDelete?.let { (target, filename) ->
@@ -257,6 +207,7 @@ fun VideoDetailScreen(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun PlayerTab(
     videoUrl: String?,
@@ -357,6 +308,7 @@ private fun PlayerTab(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun PoseTab(
     poseClipUrls: List<String>,
@@ -560,6 +512,16 @@ private fun CropsTab(
 ) {
     var selectedCrop by remember { mutableStateOf<String?>(null) }
     var showMenu by remember { mutableStateOf(false) }
+    var fullscreenUrl by remember { mutableStateOf<String?>(null) }
+
+    // Fullscreen zoomable dialog (tap a crop to open; same behavior as the gate crossings screen)
+    fullscreenUrl?.let { url ->
+        FullscreenImageDialog(
+            imageUrl = url,
+            onDismiss = { fullscreenUrl = null },
+            contentDescription = "Crop fullscreen",
+        )
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(120.dp),
@@ -580,7 +542,7 @@ private fun CropsTab(
                         .aspectRatio(0.6f)
                         .clip(RoundedCornerShape(8.dp))
                         .combinedClickable(
-                            onClick = {},
+                            onClick = { fullscreenUrl = cropUrl },
                             onLongClick = {
                                 selectedCrop = cropUrl
                                 showMenu = true
@@ -618,64 +580,11 @@ private fun FramesTab(state: VideoDetailUiState) {
 
     // Fullscreen zoomable dialog
     fullscreenUrl?.let { url ->
-        Dialog(
-            onDismissRequest = { fullscreenUrl = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black),
-            ) {
-                var scale by remember { mutableFloatStateOf(1f) }
-                var offset by remember { mutableStateOf(Offset.Zero) }
-
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(url)
-                        .size(coil3.size.Size.ORIGINAL)
-                        .build(),
-                    contentDescription = "Frame fullscreen",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { if (scale <= 1f) fullscreenUrl = null }
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                if (scale > 1f) {
-                                    offset = Offset(
-                                        x = offset.x + pan.x,
-                                        y = offset.y + pan.y,
-                                    )
-                                } else {
-                                    offset = Offset.Zero
-                                }
-                            }
-                        }
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offset.x,
-                            translationY = offset.y,
-                        ),
-                )
-
-                // Close button
-                IconButton(
-                    onClick = { fullscreenUrl = null },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp),
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                    )
-                }
-            }
-        }
+        FullscreenImageDialog(
+            imageUrl = url,
+            onDismiss = { fullscreenUrl = null },
+            contentDescription = "Frame fullscreen",
+        )
     }
 
     // Frame list — full width, tap to open fullscreen

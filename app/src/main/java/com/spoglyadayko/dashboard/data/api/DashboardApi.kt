@@ -105,7 +105,5 @@ class DashboardApi(private val baseUrlProvider: () -> String) {
         client.delete("$baseUrl/api/gallery/$target/$filename")
     }
 
-    fun videoUrl(basename: String): String = "$baseUrl/video/$basename"
-
     fun imageUrl(path: String): String = "$baseUrl$path"
 }
