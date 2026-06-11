@@ -17,7 +17,7 @@ Android dashboard app for the [analyze-video](https://github.com/alivespirit/ana
 
 ## Prerequisites
 
-1. Install **Android Studio** (Ladybug 2024.2 or later)
+1. Install **Android Studio** (Meerkat 2024.3 or later — required to sync Android Gradle Plugin 8.10)
 2. Accept Android SDK licenses, install SDK 35
 3. On your Android phone:
    - Settings > About > tap "Build number" 7 times to enable Developer Options
@@ -81,7 +81,8 @@ The worker also needs the updated `/health` endpoint (in `worker/server.py`) tha
 
 ## Tech Stack
 
-- Kotlin + Jetpack Compose + Material 3
+- Kotlin + Jetpack Compose + **Material 3 Expressive**
+- Onest + JetBrains Mono variable fonts; Haze (frosted-glass nav blur)
 - Ktor Client (HTTP) + kotlinx.serialization (JSON)
 - AndroidX Media3 / ExoPlayer (video playback with fullscreen support)
 - Coil (image loading with full-resolution zoom)

@@ -35,8 +35,9 @@ android {
         applicationId = "com.spoglyadayko.dashboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // versionCode scheme: major*10000 + minor*100 + patch (3.0.0 -> 30000).
+        versionCode = 30000
+        versionName = "3.0.0"
     }
 
     buildTypes {

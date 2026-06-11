@@ -16,7 +16,7 @@ Android companion dashboard app ("Споглядайко") for the [analyze-vide
 ./gradlew installDebug
 ```
 
-**Requirements**: Android Studio Ladybug 2024.2+, Android SDK 35, JDK 17, device/emulator with Android 8.0+ (API 26+).
+**Requirements**: Android Studio Meerkat 2024.3+ (needed to sync AGP 8.10), Android SDK 35, JDK 17, device/emulator with Android 8.0+ (API 26+).
 
 **APK output**: `app/build/outputs/apk/debug/app-debug.apk`
 
@@ -41,7 +41,10 @@ There is no automated test suite.
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| Compose BOM | 2024.12.01 | UI framework |
+| Compose BOM | 2026.04.01 | UI framework (compose-ui 1.11) |
+| Material 3 | 1.5.0-alpha18 | M3 Expressive (theme, motion, shapes) |
+| graphics-shapes | 1.0.1 | Shape morphing for MaterialShapes |
+| Haze | 1.6.0 | Frosted-glass backdrop blur (floating nav) |
 | Ktor | 3.0.3 | HTTP client |
 | Koin | 4.0.1 | Dependency injection |
 | Coil | 3.0.4 | Image loading |
@@ -52,8 +55,17 @@ There is no automated test suite.
 ### SDK Targets
 
 - `compileSdk` / `targetSdk`: 35
-- `minSdk`: 26
-- Kotlin: 2.1.0, Java compatibility: 17
+- `minSdk`: 26 (Haze backdrop blur needs API 31+; scrim fallback below)
+- Kotlin: 2.1.20, AGP: 8.10.1, Gradle: 8.11.1, Java compatibility: 17
+
+### Design System (M3 Expressive)
+
+Reuse these instead of re-inventing them:
+
+- **Theme** (`ui/theme/Theme.kt`): `SpoglyadaykoTheme` wraps `MaterialExpressiveTheme`; on API 31+ it merges the system (Material You) accent into `primary`/`primaryContainer` only, keeping custom surfaces and the status/ReID/away-back colors in `Color.kt`. `appBackgroundBrush()` is the full-screen gradient (tinted with `tertiary`/`secondary`, never the dynamic primary). The hexagon texture + gradient are painted in `SpoglyadaykoApp.kt`'s Scaffold.
+- **Typography** (`ui/theme/Type.kt`): Onest for all roles + JetBrains Mono for numerals (both variable fonts in `res/font/`). Apply `TextStyle.mono()` to any numeric text (times, percentages, counts) for tabular consistency.
+- **Motion/components** (`ui/components/`): `Modifier.fadingEdges(top, bottom)` (edge alpha mask) and `Modifier.sheenSweep { progress }` (tab-enter flow) in `FadingEdges.kt`; `ShimmerList` / `rememberShimmerBrush` in `Shimmer.kt` for load placeholders. Lists also use a per-row `graphicsLayer` scroll reveal (scale + ease toward the nearest viewport edge) and a count-aware staggered entrance — see `TodayScreen.kt` / `GateCrossingsScreen.kt`.
+- **Floating nav** (`SpoglyadaykoApp.kt`): frosted-glass pill via Haze (`hazeSource` on the pager, `hazeEffect` on the pill); transparency is the `backgroundColor`/`tints` alpha in its `hazeEffect` block.
 
 ## Screens and Navigation
 
