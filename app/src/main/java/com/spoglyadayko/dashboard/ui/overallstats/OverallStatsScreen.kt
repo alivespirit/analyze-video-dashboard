@@ -14,12 +14,15 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -64,7 +67,7 @@ fun OverallStatsScreen(
                 val processingRange by viewModel.processingRange.collectAsState()
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
+                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 104.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     // ReID accuracy card (first item; only if backend returned data)
@@ -180,6 +183,13 @@ private fun PerDayChart(
             val allStatuses =
                 statusOrder.filter { it in seen } + (seen - statusOrder.toSet()).sorted()
 
+            // Bars grow up from the baseline on first show (and when the day count changes).
+            val grow = remember { Animatable(0f) }
+            LaunchedEffect(perDay.size) {
+                grow.snapTo(0f)
+                grow.animateTo(1f, animationSpec = tween(durationMillis = 600))
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -200,7 +210,7 @@ private fun PerDayChart(
                         allStatuses.forEach { status ->
                             val count = day.statusCounts[status] ?: 0
                             if (count > 0) {
-                                val barHeight = (count.toFloat() / maxVideos * size.height)
+                                val barHeight = (count.toFloat() / maxVideos * size.height) * grow.value
                                 yOffset -= barHeight
                                 drawRect(
                                     color = statusColor(status),
@@ -326,6 +336,13 @@ private fun ProcessingTimesChart(
                 maxOf(md, full)
             }.coerceAtLeast(1.0)
 
+            // Bars grow up from the baseline on first show (and when the day count changes).
+            val grow = remember { Animatable(0f) }
+            LaunchedEffect(perDay.size) {
+                grow.snapTo(0f)
+                grow.animateTo(1f, animationSpec = tween(durationMillis = 600))
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -346,7 +363,7 @@ private fun ProcessingTimesChart(
                     perDay.forEachIndexed { i, day ->
                         var offsetX = i * barWidth
                         if (showMd) {
-                            val mdH = ((day.mdAvg ?: 0.0) / maxTime * size.height).toFloat()
+                            val mdH = ((day.mdAvg ?: 0.0) / maxTime * size.height).toFloat() * grow.value
                             if (mdH > 0) {
                                 drawRect(
                                     color = mdColor,
@@ -357,7 +374,7 @@ private fun ProcessingTimesChart(
                             if (bothShown) offsetX += subBar
                         }
                         if (showFull) {
-                            val fullH = ((day.fullAvg ?: 0.0) / maxTime * size.height).toFloat()
+                            val fullH = ((day.fullAvg ?: 0.0) / maxTime * size.height).toFloat() * grow.value
                             if (fullH > 0) {
                                 drawRect(
                                     color = fullColor,
@@ -500,6 +517,12 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
     // Selected cell state: weekday index + bin index (in trimmed space)
     var selectedCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
+    // Cells fade in with a left-to-right column sweep when the card appears.
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        reveal.animateTo(1f, animationSpec = tween(durationMillis = 700))
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -534,9 +557,11 @@ private fun WeekdayHeatmapCard(title: String, heatmap: WeekdayHeatmap, isAway: B
                             val cellWidth = size.width / bins.size.coerceAtLeast(1)
                             bins.forEachIndexed { i, v ->
                                 val alpha = if (maxVal > 0) v.toFloat() / maxVal else 0f
+                                // Column-sweep reveal: each column fully in by reveal=1.
+                                val p = ((reveal.value - (i.toFloat() / bins.size.coerceAtLeast(1)) * 0.5f) / 0.5f).coerceIn(0f, 1f)
                                 val isSelected = selectedCell == Pair(wd, i)
                                 drawRect(
-                                    color = color.copy(alpha = alpha.coerceIn(0.05f, 1f)),
+                                    color = color.copy(alpha = alpha.coerceIn(0.05f, 1f) * p),
                                     topLeft = Offset(i * cellWidth, 0f),
                                     size = Size(cellWidth, size.height),
                                 )
@@ -670,7 +695,7 @@ private fun ReIDAccuracyCard(
             Spacer(Modifier.height(6.dp))
             Text(
                 "TP: ${reid.totals.tp}  •  FP: ${reid.totals.fp}  •  FN: ${reid.totals.fn}",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.mono(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
@@ -714,6 +739,13 @@ private fun ReIDAccuracyCard(
             val perDay = reid.perDay.lastDays(range.days)
             val movingAvg = reid.movingAvg7d.lastDays(range.days)
 
+            // Lines draw on left-to-right on first show (and when the range changes).
+            val reveal = remember { Animatable(0f) }
+            LaunchedEffect(perDay.size) {
+                reveal.snapTo(0f)
+                reveal.animateTo(1f, animationSpec = tween(durationMillis = 800))
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -745,6 +777,8 @@ private fun ReIDAccuracyCard(
                         )
                     }
 
+                    // Reveal the series left-to-right on first show.
+                    clipRect(right = (w * reveal.value).coerceAtLeast(0.01f)) {
                     // Daily faint lines for each enabled series.
                     if (showPrecision) {
                         drawSeries(
@@ -802,6 +836,7 @@ private fun ReIDAccuracyCard(
                             strokeWidth = 4f,
                         )
                     }
+                    } // end series reveal clip
 
                     // Selection highlight: translucent band + line + dots on enabled series.
                     selectedIdx?.let { i ->
@@ -887,7 +922,7 @@ private fun ReIDAccuracyCard(
 }
 
 @Composable
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 private fun SelectedDayWall(
     day: ReIDDayStats,
     onVideoClick: (basename: String, day: String) -> Unit,
@@ -1169,7 +1204,7 @@ private fun ReIDMetricBlock(label: String, value: Double?, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             value?.let { (it * 100).fmt("%.1f") + "%" } ?: "–",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge.mono(),
             color = color,
             fontWeight = FontWeight.SemiBold,
         )

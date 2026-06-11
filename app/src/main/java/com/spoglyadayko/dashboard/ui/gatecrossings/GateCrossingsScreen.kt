@@ -1,11 +1,13 @@
 package com.spoglyadayko.dashboard.ui.gatecrossings
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -15,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -22,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.spoglyadayko.dashboard.ui.components.FullscreenImageDialog
+import com.spoglyadayko.dashboard.ui.components.fadingEdges
 import com.spoglyadayko.dashboard.ui.theme.*
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -36,8 +40,25 @@ fun GateCrossingsScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
     var pendingScrollToTopAfterRefresh by remember { mutableStateOf(false) }
+
+    // Staggered entrance: one driver ramps 0→target on load; each row reveals over its own slice
+    // (fade + slight rise). The page is opened directly (not scroll-reached), so it always plays in
+    // full. Target is count-aware so the LAST row fully reveals too (revealSlice past its delay).
+    val stagger = 0.06f
+    val revealSlice = 0.35f
+    val entranceTarget = (state.items.size - 1).coerceAtLeast(0) * stagger + revealSlice
+    val entrance = remember { Animatable(0f) }
+    LaunchedEffect(state.items.isNotEmpty()) {
+        if (state.items.isNotEmpty()) {
+            entrance.snapTo(0f)
+            // Scale duration with the ramp so per-row pacing is constant regardless of count.
+            entrance.animateTo(
+                entranceTarget,
+                animationSpec = tween(durationMillis = (entranceTarget * 550).toInt().coerceIn(400, 1200)),
+            )
+        }
+    }
 
     // Fullscreen image state
     var fullscreenUrl by remember { mutableStateOf<String?>(null) }
@@ -91,13 +112,37 @@ fun GateCrossingsScreen(
                 state.items.isNotEmpty() -> {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(8.dp),
+                        modifier = Modifier.fillMaxSize().fadingEdges(topFade = 16.dp, bottomFade = 16.dp),
+                        contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 104.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        items(state.items, key = { it.entry.basename }) { item ->
+                        itemsIndexed(state.items, key = { _, it -> it.entry.basename }) { index, item ->
+                            // Reveal window for this row: opens at index*stagger, full revealSlice later.
+                            val p = ((entrance.value - index * stagger) / revealSlice).coerceIn(0f, 1f)
                             GateCrossingRow(
                                 item = item,
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        // Entrance stagger (on load): fade + rise. alpha is also used by
+                                        // fadingEdges' mask, so after load (p=1) only the edge fade remains.
+                                        alpha = p
+                                        // Scroll reveal: rows scale in + ease toward the nearest viewport
+                                        // edge — rising IN from the bottom, sliding UP and out at the top.
+                                        val li = listState.layoutInfo
+                                        val info = li.visibleItemsInfo.firstOrNull { it.index == index }
+                                        val edgeShift = if (info != null && info.size > 0) {
+                                            val sz = info.size.toFloat()
+                                            val enterBottom = ((li.viewportEndOffset - info.offset) / sz).coerceIn(0f, 1f)
+                                            val enterTop = ((info.offset + info.size - li.viewportStartOffset) / sz).coerceIn(0f, 1f)
+                                            val s = 0.94f + 0.06f * minOf(enterBottom, enterTop)
+                                            scaleX = s
+                                            scaleY = s
+                                            if (enterBottom <= enterTop) (1f - enterBottom) * 16.dp.toPx()
+                                            else -(1f - enterTop) * 16.dp.toPx()
+                                        } else 0f
+                                        translationY = (1f - p) * 24.dp.toPx() + edgeShift
+                                    }
+                                    .animateItem(),
                                 showMenu = showMenu,
                                 menuCropUrl = menuCropUrl,
                                 onCropClick = { fullscreenUrl = it },
@@ -128,6 +173,7 @@ fun GateCrossingsScreen(
 @Composable
 private fun GateCrossingRow(
     item: GateCrossingItem,
+    modifier: Modifier = Modifier,
     showMenu: Boolean,
     menuCropUrl: String?,
     onCropClick: (String) -> Unit,
@@ -139,6 +185,7 @@ private fun GateCrossingRow(
     val entry = item.entry
 
     Card(
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(8.dp),
         onClick = { onRowClick?.invoke() },
@@ -157,7 +204,7 @@ private fun GateCrossingRow(
                 // Time (HH:MM)
                 Text(
                     entry.time?.substringBeforeLast(":") ?: "--:--",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.mono(),
                     fontSize = 13.sp,
                 )
 
@@ -177,6 +224,7 @@ private fun GateCrossingRow(
                             Text(
                                 "$up\u2191",
                                 fontSize = 13.sp,
+                                fontFamily = JetBrainsMono,
                                 color = AwayColor,
                             )
                         }
@@ -184,6 +232,7 @@ private fun GateCrossingRow(
                             Text(
                                 "$down\u2193",
                                 fontSize = 13.sp,
+                                fontFamily = JetBrainsMono,
                                 color = BackColor,
                             )
                         }
@@ -227,7 +276,7 @@ private fun GateCrossingRow(
                     ) {
                         Text(
                             "${(entry.reidScore * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.mono(),
                             color = Color.White,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                         )
@@ -243,7 +292,7 @@ private fun GateCrossingRow(
                     ) {
                         Text(
                             "${(entry.reidNeg * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.mono(),
                             color = Color.White,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                         )

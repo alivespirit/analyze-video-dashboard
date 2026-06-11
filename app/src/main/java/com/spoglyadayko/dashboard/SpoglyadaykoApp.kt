@@ -1,9 +1,14 @@
 package com.spoglyadayko.dashboard
 
+import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -11,12 +16,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -27,6 +37,12 @@ import com.spoglyadayko.dashboard.ui.monitoring.MonitoringScreen
 import com.spoglyadayko.dashboard.ui.overallstats.OverallStatsScreen
 import com.spoglyadayko.dashboard.ui.settings.SettingsScreen
 import com.spoglyadayko.dashboard.ui.theme.SpoglyadaykoTheme
+import com.spoglyadayko.dashboard.ui.theme.mono
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import com.spoglyadayko.dashboard.ui.today.TodayScreen
 import com.spoglyadayko.dashboard.ui.today.VideoDetailScreen
 import com.spoglyadayko.dashboard.ui.todaystats.TodayStatsScreen
@@ -44,6 +60,78 @@ private val tabs = listOf(
     TabDef("Загалом", Icons.Default.Timeline),
     TabDef("Моніторинг", Icons.Default.Monitor),
 )
+
+// Floating pill navigation. Custom-built (rather than HorizontalFloatingToolbar) for full control:
+// a center-aligned Row keeps the tall selected pill and the short icon buttons vertically aligned,
+// and Surface(onClick) gives a ripple clipped to the pill shape (no unbounded circle).
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeApi::class)
+@Composable
+private fun FloatingNavBar(
+    currentPage: Int,
+    selectedDay: String?,
+    hazeState: HazeState,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Frosted-glass pill: transparent Surface (keeps the shape + float shadow), with hazeEffect
+    // painting the blurred backdrop of the content scrolling beneath it + a translucent tint.
+    val glass = MaterialTheme.colorScheme.surfaceVariant
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = Color.Transparent,
+        shadowElevation = 8.dp,
+        modifier = modifier,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .hazeEffect(state = hazeState) {
+                    blurRadius = 24.dp
+                    backgroundColor = glass.copy(alpha = 0.40f)
+                    tints = listOf(HazeTint(glass.copy(alpha = 0.22f)))
+                }
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                val selected = currentPage == index
+                val label = if (index == 0 && selectedDay != null) {
+                    try {
+                        val d = LocalDate.parse(selectedDay)
+                        "${"%02d".format(d.dayOfMonth)}.${"%02d".format(d.monthValue)}"
+                    } catch (_: Exception) { tab.label }
+                } else tab.label
+
+                // Every tab is the same Surface (stable identity) so the selection can animate:
+                // the background colour fades in/out and the label grows/shrinks via animateContentSize.
+                val bg by animateColorAsState(
+                    if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    label = "navItemBg",
+                )
+                Surface(
+                    onClick = { onSelect(index) },
+                    shape = RoundedCornerShape(50),
+                    color = bg,
+                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(horizontal = if (selected) 16.dp else 12.dp, vertical = 10.dp)
+                            .animateContentSize(),
+                    ) {
+                        Icon(tab.icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                        if (selected) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(label, maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -66,6 +154,7 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
         val api = koinInject<DashboardApi>()
         val scope = rememberCoroutineScope()
         val pagerState = rememberPagerState(pageCount = { tabs.size })
+        val hazeState = remember { HazeState() }
 
         // Sync bottom bar selection with pager
         LaunchedEffect(pagerState.currentPage) {
@@ -73,7 +162,7 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
         }
 
         // Handle deep link from notification
-        val activity = LocalContext.current as? MainActivity
+        val activity = LocalActivity.current as? MainActivity
         val videoToOpen = deepLinkVideo?.collectAsState()?.value
         LaunchedEffect(videoToOpen) {
             videoToOpen?.let { basename ->
@@ -147,6 +236,25 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
         val isOverlay = currentRoute?.startsWith("video_detail") == true || currentRoute == "settings" || currentRoute == "gate_crossings"
 
         Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(com.spoglyadayko.dashboard.ui.theme.appBackgroundBrush())
+                // Faint hexagon texture over the gradient — the same clean (un-lifted) texture for both
+                // themes, just far fainter on light so the white shows through (avoids the gamma-lift
+                // artifacts of a derived light image). Content stays opaque on top.
+                .paint(
+                    painterResource(R.drawable.logo_background_3),
+                    contentScale = ContentScale.Crop,
+                    alpha = if (darkTheme) 0.30f else 0.22f,
+                    // Light theme: boost saturation so the teal reads through the faint overlay
+                    // (saturation doesn't stretch tones, so no banding). Dark theme keeps its colors.
+                    colorFilter = if (darkTheme) null
+                    else ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1.6f) }),
+                ),
+            containerColor = Color.Transparent,
+            // A transparent container defaults contentColor to unspecified (→ black); set it back so
+            // content-area text without an explicit colour stays legible on dark.
+            contentColor = MaterialTheme.colorScheme.onBackground,
             topBar = {
                 val isDetail = currentRoute?.startsWith("video_detail") == true
                 val isSettings = currentRoute == "settings"
@@ -158,7 +266,9 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         when {
                             isDetail -> Text(
                                 currentBackStackEntry?.arguments?.getString("basename") ?: "\u0412\u0456\u0434\u0435\u043E",
+                                style = MaterialTheme.typography.titleMedium.mono(),
                                 maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                             isSettings -> Text("Settings")
                             isGateCrossings -> Text("\u0425\u0432\u0456\u0440\u0442\u043A\u0430")
@@ -172,7 +282,7 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     },
                     navigationIcon = {
                         if (showBackArrow) {
-                            val activity = LocalContext.current as? androidx.activity.ComponentActivity
+                            val activity = LocalActivity.current as? androidx.activity.ComponentActivity
                             IconButton(onClick = {
                                 // For video detail, the BackHandler inside VideoDetailScreen
                                 // handles hiding players. Simulate system back to trigger it.
@@ -203,40 +313,21 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        // Transparent so the app's background gradient flows continuously behind the
+                        // title instead of the bar reading as a flat opaque block on top of it.
+                        containerColor = Color.Transparent,
                     ),
                 )
             },
-            bottomBar = {
-                if (!isOverlay) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ) {
-                        tabs.forEachIndexed { index, tab ->
-                            val label = if (index == 0 && selectedDay != null) {
-                                try {
-                                    val d = LocalDate.parse(selectedDay)
-                                    "${"%02d".format(d.dayOfMonth)}.${"%02d".format(d.monthValue)}"
-                                } catch (_: Exception) { tab.label }
-                            } else tab.label
-                            NavigationBarItem(
-                                icon = { Icon(tab.icon, contentDescription = label) },
-                                label = { Text(label, maxLines = 1) },
-                                selected = pagerState.currentPage == index,
-                                onClick = {
-                                    scope.launch { pagerState.animateScrollToPage(index) }
-                                },
-                            )
-                        }
-                    }
-                }
-            },
+            // No bottomBar — the nav is a floating pill overlaid on the content (see FloatingNavBar
+            // at the bottom of the content Box), so it visually hovers over the screen.
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
                 // Main swipeable tabs (always composed, hidden behind overlays)
                 HorizontalPager(
                     state = pagerState,
-                    modifier = if (isOverlay) Modifier.fillMaxSize().alpha(0f) else Modifier.fillMaxSize(),
+                    modifier = (if (isOverlay) Modifier.fillMaxSize().alpha(0f) else Modifier.fillMaxSize())
+                        .hazeSource(hazeState),
                     beyondViewportPageCount = 1,
                     userScrollEnabled = !isOverlay,
                 ) { page ->
@@ -290,7 +381,7 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         // Day from the route wins; falls back to the global picker for
                         // callers that don't pass one (e.g. Today / Gate crossings tabs).
                         val day = backStackEntry.arguments?.getString("day") ?: selectedDay
-                        Surface(modifier = Modifier.fillMaxSize()) {
+                        Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
                             VideoDetailScreen(
                                 basename = basename,
                                 day = day,
@@ -299,12 +390,12 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                         }
                     }
                     composable("settings") {
-                        Surface(modifier = Modifier.fillMaxSize()) {
+                        Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
                             SettingsScreen()
                         }
                     }
                     composable("gate_crossings") {
-                        Surface(modifier = Modifier.fillMaxSize()) {
+                        Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
                             com.spoglyadayko.dashboard.ui.gatecrossings.GateCrossingsScreen(
                                 day = selectedDay,
                                 onVideoClick = { basename ->
@@ -313,6 +404,19 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                             )
                         }
                     }
+                }
+
+                // Floating nav pill — drawn on top of the pager so it hovers over the content.
+                if (!isOverlay) {
+                    FloatingNavBar(
+                        currentPage = pagerState.currentPage,
+                        selectedDay = selectedDay,
+                        hazeState = hazeState,
+                        onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 24.dp),
+                    )
                 }
             }
         }

@@ -27,6 +27,7 @@ val ReidNeg = Color(0xFF602085)
 val AwayColor = Color(0xFF24BF91)
 val BackColor = Color(0xFFEF4444)
 
+
 fun statusColor(status: String?): Color = when (status) {
     "no_motion" -> StatusNoMotion
     "no_significant_motion" -> StatusNoSignificantMotion

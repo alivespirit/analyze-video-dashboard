@@ -50,10 +50,6 @@ class SettingsStore(private val context: Context) {
         prefs[EXCLUDED_STATUSES] ?: emptySet()
     }
 
-    val lastEventTs: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[LAST_EVENT_TS]
-    }
-
     suspend fun setServerUrl(url: String) {
         context.dataStore.edit { prefs -> prefs[SERVER_URL] = url }
     }

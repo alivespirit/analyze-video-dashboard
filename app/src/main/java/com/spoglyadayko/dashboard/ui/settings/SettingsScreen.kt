@@ -23,84 +23,92 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    // Form lives on a card panel so it stays legible/usable over the app's background texture.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineSmall)
-
-        // Server URL
-        OutlinedTextField(
-            value = state.serverUrl,
-            onValueChange = { viewModel.setServerUrl(it) },
-            label = { Text("Server URL") },
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Done,
-            ),
-        )
-
-        // Poll interval
-        OutlinedTextField(
-            value = state.pollIntervalSeconds.toString(),
-            onValueChange = { it.toIntOrNull()?.let { v -> viewModel.setPollInterval(v.coerceIn(10, 300)) } },
-            label = { Text("Poll interval (seconds)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Done,
-            ),
-        )
-
-        // Notifications toggle
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            Text("Away/Back notifications")
-            Switch(
-                checked = state.notificationsEnabled,
-                onCheckedChange = { enabled ->
-                    viewModel.setNotificationsEnabled(enabled)
-                    val intent = Intent(context, EventPollService::class.java)
-                    if (enabled) {
-                        context.startForegroundService(intent)
-                    } else {
-                        context.stopService(intent)
-                    }
-                },
-            )
-        }
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                // Server URL
+                OutlinedTextField(
+                    value = state.serverUrl,
+                    onValueChange = { viewModel.setServerUrl(it) },
+                    label = { Text("Server URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done,
+                    ),
+                )
 
-        Text(
-            "Notifications will show current Home/Away status and alert on changes.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+                // Poll interval
+                OutlinedTextField(
+                    value = state.pollIntervalSeconds.toString(),
+                    onValueChange = { it.toIntOrNull()?.let { v -> viewModel.setPollInterval(v.coerceIn(10, 300)) } },
+                    label = { Text("Poll interval (seconds)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                )
 
-        HorizontalDivider()
-
-        // Theme selector
-        Text("Theme", style = MaterialTheme.typography.titleSmall)
-        val themeOptions = listOf(
-            SettingsStore.THEME_AUTO to "Auto (system)",
-            SettingsStore.THEME_LIGHT to "Light",
-            SettingsStore.THEME_DARK to "Dark",
-        )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            themeOptions.forEachIndexed { index, (mode, label) ->
-                SegmentedButton(
-                    selected = state.themeMode == mode,
-                    onClick = { viewModel.setThemeMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
+                // Notifications toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(label)
+                    Text("Away/Back notifications")
+                    Switch(
+                        checked = state.notificationsEnabled,
+                        onCheckedChange = { enabled ->
+                            viewModel.setNotificationsEnabled(enabled)
+                            val intent = Intent(context, EventPollService::class.java)
+                            if (enabled) {
+                                context.startForegroundService(intent)
+                            } else {
+                                context.stopService(intent)
+                            }
+                        },
+                    )
+                }
+
+                Text(
+                    "Notifications will show current Home/Away status and alert on changes.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                HorizontalDivider()
+
+                // Theme selector
+                Text("Theme", style = MaterialTheme.typography.titleSmall)
+                val themeOptions = listOf(
+                    SettingsStore.THEME_AUTO to "Auto",
+                    SettingsStore.THEME_LIGHT to "Light",
+                    SettingsStore.THEME_DARK to "Dark",
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    themeOptions.forEachIndexed { index, (mode, label) ->
+                        SegmentedButton(
+                            selected = state.themeMode == mode,
+                            onClick = { viewModel.setThemeMode(mode) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
+                        ) {
+                            Text(label)
+                        }
+                    }
                 }
             }
         }

@@ -35,6 +35,7 @@ import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.spoglyadayko.dashboard.ui.components.FullscreenImageDialog
+import com.spoglyadayko.dashboard.ui.theme.mono
 import com.spoglyadayko.dashboard.ui.theme.severityColor
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -159,7 +160,7 @@ fun VideoDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
-            ScrollableTabRow(
+            PrimaryScrollableTabRow(
                 selectedTabIndex = pagerState.currentPage.coerceIn(0, tabs.size - 1),
                 containerColor = MaterialTheme.colorScheme.surface,
                 edgePadding = 0.dp,
@@ -413,7 +414,7 @@ private fun parseGalleryCrop(content: String): GalleryCropMatch? {
     return GalleryCropMatch(prefix = before, filename = filename, target = target)
 }
 
-@OptIn(ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun LogsTab(
     state: VideoDetailUiState,
@@ -446,7 +447,7 @@ private fun LogsTab(
             ) {
                 Text(
                     entry.ts.substringAfterLast(" "),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.mono(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.width(64.dp),
                 )
@@ -457,14 +458,14 @@ private fun LogsTab(
                 ) {
                     Text(
                         entry.level.take(4),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.mono(),
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                     )
                 }
                 if (entry.worker) {
                     Text(
                         "[W] ",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.mono(),
                         color = MaterialTheme.colorScheme.tertiary,
                     )
                 }

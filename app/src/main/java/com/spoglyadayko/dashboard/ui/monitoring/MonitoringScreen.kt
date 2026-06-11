@@ -1,8 +1,9 @@
 package com.spoglyadayko.dashboard.ui.monitoring
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,6 +12,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spoglyadayko.dashboard.data.api.LedgerEntry
@@ -18,12 +21,13 @@ import com.spoglyadayko.dashboard.data.api.MasterStats
 import com.spoglyadayko.dashboard.data.api.TeslaStats
 import com.spoglyadayko.dashboard.data.api.WorkerStats
 import com.spoglyadayko.dashboard.ui.theme.fmt
+import com.spoglyadayko.dashboard.ui.theme.mono
 import com.spoglyadayko.dashboard.ui.theme.statusColor
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MonitoringScreen(viewModel: MonitoringViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsState()
@@ -47,7 +51,7 @@ fun MonitoringScreen(viewModel: MonitoringViewModel = koinViewModel()) {
                 val data = state.data!!
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
+                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 104.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item { MasterCard(data.master) }
@@ -58,15 +62,24 @@ fun MonitoringScreen(viewModel: MonitoringViewModel = koinViewModel()) {
                         item { TeslaCard(data.tesla) }
                     }
                     if (data.ledgerRecent.isNotEmpty()) {
+                        // Whole section on one card panel so the title is anchored (not floating on
+                        // the background texture) and the entries read as a grouped list.
                         item {
-                            Text(
-                                "Recent processing",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-                        items(data.ledgerRecent) { entry ->
-                            LedgerEntryRow(entry)
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+                                    Text(
+                                        "Recent processing",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    data.ledgerRecent.forEach { entry ->
+                                        LedgerEntryRow(entry)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -81,9 +94,13 @@ fun MonitoringScreen(viewModel: MonitoringViewModel = koinViewModel()) {
                     }
                 }
             }
-            !state.loading -> {
+            else -> {
+                // M3 Expressive shape-morphing loader.
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No data", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LoadingIndicator(
+                        modifier = Modifier.size(56.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
         }
@@ -100,24 +117,14 @@ private fun MasterCard(master: MasterStats) {
             Spacer(Modifier.height(8.dp))
 
             StatRow(icon = Icons.Default.Memory, label = "CPU", value = "${master.cpuPercent.fmt("%.1f")}%")
-            LinearProgressIndicator(
-                progress = { (master.cpuPercent / 100.0).toFloat() },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.outline,
-            )
+            AnimatedBar((master.cpuPercent / 100.0).toFloat(), MaterialTheme.colorScheme.primary)
 
             StatRow(
                 icon = Icons.Default.Storage,
                 label = "RAM",
                 value = "${master.memoryUsedMb}/${master.memoryTotalMb} MB (${master.memoryPercent.fmt("%.1f")}%)",
             )
-            LinearProgressIndicator(
-                progress = { (master.memoryPercent / 100.0).toFloat() },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                color = MaterialTheme.colorScheme.secondary,
-                trackColor = MaterialTheme.colorScheme.outline,
-            )
+            AnimatedBar((master.memoryPercent / 100.0).toFloat(), MaterialTheme.colorScheme.secondary)
 
             if (master.batteryPercent != null) {
                 val batteryIcon = when {
@@ -126,28 +133,19 @@ private fun MasterCard(master: MasterStats) {
                     master.batteryPercent > 20 -> Icons.Default.Battery3Bar
                     else -> Icons.Default.Battery1Bar
                 }
-                val timeLeft = master.batteryTimeLeftS?.let {
-                    val h = it / 3600
-                    val m = (it % 3600) / 60
-                    "${h}h${m}m"
-                }
-                val pluggedStr = if (master.batteryPlugged == true) " (plugged)" else ""
-                val timeStr = timeLeft?.let { " \u2014 $it left" } ?: ""
+                // Plugged → charge bolt; on battery → estimated time left. Never both.
+                val batterySuffix = if (master.batteryPlugged == true) " ⚡"
+                    else master.batteryTimeLeftS?.let {
+                        val h = it / 3600
+                        val m = (it % 3600) / 60
+                        " — ${h}h${m}m left"
+                    } ?: ""
                 StatRow(
                     icon = batteryIcon,
                     label = "Battery",
-                    value = "${master.batteryPercent.fmt("%.0f")}%$pluggedStr$timeStr",
+                    value = "${master.batteryPercent.fmt("%.0f")}%$batterySuffix",
                 )
-                LinearProgressIndicator(
-                    progress = { (master.batteryPercent / 100.0).toFloat() },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    color = when {
-                        master.batteryPercent > 50 -> MaterialTheme.colorScheme.secondary
-                        master.batteryPercent > 20 -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.error
-                    },
-                    trackColor = MaterialTheme.colorScheme.outline,
-                )
+                AnimatedBar((master.batteryPercent / 100.0).toFloat(), batteryColor(master.batteryPercent))
             }
         }
     }
@@ -175,11 +173,10 @@ private fun WorkerCard(worker: WorkerStats) {
                 }
                 if (worker.status != "ok" && worker.offlineSince != null) {
                     Spacer(Modifier.width(8.dp))
-                    // Trim seconds for display: "HH:MM:SS" -> "HH:MM"
                     val sinceShort = worker.offlineSince.substringBeforeLast(":")
                     Text(
                         "since $sinceShort",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.mono(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -206,7 +203,7 @@ private fun WorkerCard(worker: WorkerStats) {
                 StatRow(
                     icon = Icons.Default.Thermostat,
                     label = "CPU temp",
-                    value = "${worker.cpuTempC.fmt("%.1f")}\u00B0C",
+                    value = "${worker.cpuTempC.fmt("%.1f")}°C",
                 )
             }
 
@@ -216,12 +213,7 @@ private fun WorkerCard(worker: WorkerStats) {
                     label = "RAM",
                     value = "${worker.memoryUsedMb ?: 0}/${worker.memoryTotalMb ?: 0} MB (${worker.memoryPercent.fmt("%.1f")}%)",
                 )
-                LinearProgressIndicator(
-                    progress = { (worker.memoryPercent / 100.0).toFloat() },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.secondary,
-                    trackColor = MaterialTheme.colorScheme.outline,
-                )
+                AnimatedBar((worker.memoryPercent / 100.0).toFloat(), MaterialTheme.colorScheme.secondary)
             }
 
             if (worker.batteryPercent != null) {
@@ -231,28 +223,19 @@ private fun WorkerCard(worker: WorkerStats) {
                     worker.batteryPercent > 20 -> Icons.Default.Battery3Bar
                     else -> Icons.Default.Battery1Bar
                 }
-                val timeLeft = worker.batteryTimeLeftS?.let {
-                    val h = it / 3600
-                    val m = (it % 3600) / 60
-                    "${h}h${m}m"
-                }
-                val pluggedStr = if (worker.batteryPlugged == true) " (plugged)" else ""
-                val timeStr = timeLeft?.let { " \u2014 $it left" } ?: ""
+                // Plugged → charge bolt; on battery → estimated time left. Never both.
+                val batterySuffix = if (worker.batteryPlugged == true) " ⚡"
+                    else worker.batteryTimeLeftS?.let {
+                        val h = it / 3600
+                        val m = (it % 3600) / 60
+                        " — ${h}h${m}m left"
+                    } ?: ""
                 StatRow(
                     icon = batteryIcon,
                     label = "Battery",
-                    value = "${worker.batteryPercent.fmt("%.0f")}%$pluggedStr$timeStr",
+                    value = "${worker.batteryPercent.fmt("%.0f")}%$batterySuffix",
                 )
-                LinearProgressIndicator(
-                    progress = { (worker.batteryPercent / 100.0).toFloat() },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    color = when {
-                        worker.batteryPercent > 50 -> MaterialTheme.colorScheme.secondary
-                        worker.batteryPercent > 20 -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.error
-                    },
-                    trackColor = MaterialTheme.colorScheme.outline,
-                )
+                AnimatedBar((worker.batteryPercent / 100.0).toFloat(), batteryColor(worker.batteryPercent))
             }
         }
     }
@@ -277,22 +260,43 @@ private fun TeslaCard(tesla: TeslaStats) {
                 label = "Battery",
                 value = "${tesla.batteryPercent}% ($updatedStr)",
             )
-            LinearProgressIndicator(
-                progress = { tesla.batteryPercent / 100f },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                color = when {
+            AnimatedBar(
+                tesla.batteryPercent / 100f,
+                when {
                     tesla.batteryPercent > 50 -> MaterialTheme.colorScheme.secondary
                     tesla.batteryPercent > 30 -> MaterialTheme.colorScheme.tertiary
                     else -> MaterialTheme.colorScheme.error
                 },
-                trackColor = MaterialTheme.colorScheme.outline,
             )
         }
     }
 }
 
+// Progress bar that glides from 0 to its value on first show, and eases between values on refresh
+// (smooth tween — deliberately no spring overshoot).
 @Composable
-private fun StatRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+private fun AnimatedBar(target: Float, color: Color) {
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(target) {
+        anim.animateTo(target.coerceIn(0f, 1f), animationSpec = tween(durationMillis = 700))
+    }
+    LinearProgressIndicator(
+        progress = { anim.value },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        color = color,
+        trackColor = MaterialTheme.colorScheme.outline,
+    )
+}
+
+@Composable
+private fun batteryColor(percent: Double) = when {
+    percent > 50 -> MaterialTheme.colorScheme.secondary
+    percent > 20 -> MaterialTheme.colorScheme.tertiary
+    else -> MaterialTheme.colorScheme.error
+}
+
+@Composable
+private fun StatRow(icon: ImageVector, label: String, value: String) {
     Row(
         modifier = Modifier.padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -311,7 +315,7 @@ private fun StatRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
         )
         Text(
             value,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.mono(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -319,15 +323,12 @@ private fun StatRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
 
 @Composable
 private fun LedgerEntryRow(entry: LedgerEntry) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
             Surface(
                 color = statusColor(entry.status),
                 shape = RoundedCornerShape(3.dp),
@@ -363,12 +364,11 @@ private fun LedgerEntryRow(entry: LedgerEntry) {
             if (tsStr != null) {
                 Text(
                     tsStr,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.mono(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-    }
 }
 
 private fun formatTimestamp(ts: Double): String {

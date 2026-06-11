@@ -1,5 +1,8 @@
 package com.spoglyadayko.dashboard.ui.todaystats
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,7 +24,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.BoxWithConstraints
 import com.spoglyadayko.dashboard.data.api.AwayInterval
 import com.spoglyadayko.dashboard.data.api.ChartEntry
@@ -73,7 +82,7 @@ fun TodayStatsScreen(
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
+                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 104.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item {
@@ -127,10 +136,84 @@ fun TodayStatsScreen(
                     }
                 }
             }
-            !state.loading -> {
+            state.loading -> {
+                com.spoglyadayko.dashboard.ui.components.ShimmerList(rows = 5, rowHeight = 88.dp)
+            }
+            else -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No data", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+        }
+    }
+}
+
+// Lays children out in lines by their NATURAL width (so wrapping matches content, like FlowRow),
+// then grows every chip on a line by an equal share of that line's leftover space so each line fills
+// the full width. Chip widths stay proportional to content — not equalized.
+@Composable
+private fun JustifiedFlowRow(
+    modifier: Modifier = Modifier,
+    horizontalGap: Dp = 6.dp,
+    verticalGap: Dp = 6.dp,
+    content: @Composable () -> Unit,
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val maxW = constraints.maxWidth
+        val hGap = horizontalGap.roundToPx()
+        val vGap = verticalGap.roundToPx()
+
+        // Natural single-line width of each child via intrinsics (so each is still measured only once).
+        val natural = IntArray(measurables.size) { measurables[it].maxIntrinsicWidth(Int.MAX_VALUE) }
+
+        // Greedy line packing by natural width.
+        val lines = mutableListOf<IntRange>()
+        var start = 0
+        var lineW = 0
+        for (i in measurables.indices) {
+            val extra = natural[i] + if (i == start) 0 else hGap
+            if (i > start && lineW + extra > maxW) {
+                lines.add(start until i)
+                start = i
+                lineW = natural[i]
+            } else {
+                lineW += extra
+            }
+        }
+        lines.add(start until measurables.size)
+
+        // Grow each child by an equal share of its line's leftover, then measure once at that width.
+        val placeables = arrayOfNulls<Placeable>(measurables.size)
+        for (line in lines) {
+            val count = line.count()
+            val naturalSum = line.sumOf { natural[it] }
+            val leftover = (maxW - hGap * (count - 1) - naturalSum).coerceAtLeast(0)
+            val per = leftover / count
+            var rem = leftover % count
+            for (i in line) {
+                var w = natural[i] + per
+                if (rem > 0) { w++; rem-- }
+                w = w.coerceAtMost(maxW)
+                placeables[i] = measurables[i].measure(Constraints(minWidth = w, maxWidth = w))
+            }
+        }
+
+        val totalH = lines.withIndex().sumOf { (idx, line) ->
+            line.maxOf { placeables[it]!!.height } + if (idx == 0) 0 else vGap
+        }
+
+        layout(maxW, totalH) {
+            var y = 0
+            lines.forEachIndexed { idx, line ->
+                if (idx > 0) y += vGap
+                val lineH = line.maxOf { placeables[it]!!.height }
+                var x = 0
+                for (i in line) {
+                    val p = placeables[i]!!
+                    p.placeRelative(x, y + (lineH - p.height) / 2)
+                    x += p.width + hGap
+                }
+                y += lineH
             }
         }
     }
@@ -147,10 +230,10 @@ private fun StatusCountsGrid(
     val unknownStatuses = counts.keys.filter { it !in ALL_STATUSES }.sorted()
     val displayStatuses = ALL_STATUSES + unknownStatuses
 
-    FlowRow(
+    JustifiedFlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalGap = 6.dp,
+        verticalGap = 6.dp,
     ) {
         displayStatuses.forEach { status ->
             val count = counts[status] ?: 0
@@ -167,12 +250,15 @@ private fun StatusCountsGrid(
                 shape = RoundedCornerShape(6.dp),
                 modifier = borderMod.clickable { onToggle(status) },
             ) {
+                // Onest is wider than Roboto, so tighten the pills (smaller label, zero letter tracking).
+                val chipStyle = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp, fontSize = 12.sp)
                 Text(
                     "${status.replace("_", " ")}: $count",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = if (isExcluded) MaterialTheme.typography.labelMedium.copy(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
+                    textAlign = TextAlign.Center,
+                    style = if (isExcluded) chipStyle.copy(
                         textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
-                    ) else MaterialTheme.typography.labelMedium,
+                    ) else chipStyle,
                     color = if (isExcluded) Color.White.copy(alpha = 0.5f)
                         else if (status in listOf("no_person", "no_significant_motion")) Color.Black
                         else Color.White,
@@ -204,8 +290,10 @@ private fun GateCrossingsCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Gate crossings:", fontWeight = FontWeight.Medium)
-                Text("\u2191 ${counts["up"] ?: 0}", color = AwayColor)
-                Text("\u2193 ${counts["down"] ?: 0}", color = BackColor)
+                val upCount by animateIntAsState(targetValue = counts["up"] ?: 0, label = "gateUp")
+                val downCount by animateIntAsState(targetValue = counts["down"] ?: 0, label = "gateDown")
+                Text("\u2191 $upCount", fontFamily = JetBrainsMono, color = AwayColor)
+                Text("\u2193 $downCount", fontFamily = JetBrainsMono, color = BackColor)
                 Spacer(Modifier.weight(1f))
                 Icon(
                     Icons.Default.ChevronRight,
@@ -369,7 +457,7 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
             ) {
                 Text("\u2191", color = AwayColor, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.width(2.dp))
-                Text(iv.start ?: "...", style = MaterialTheme.typography.bodySmall)
+                Text(iv.start ?: "...", style = MaterialTheme.typography.bodySmall.mono())
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "\u2192",
@@ -380,7 +468,7 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                 if (iv.end != null) {
                     Text("\u2193", color = BackColor, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.width(2.dp))
-                    Text(iv.end, style = MaterialTheme.typography.bodySmall)
+                    Text(iv.end, style = MaterialTheme.typography.bodySmall.mono())
                 } else {
                     // Only "ongoing" when viewing today; for past days the end is simply unknown.
                     Text(
@@ -393,7 +481,7 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "($it)",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.mono(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -425,17 +513,17 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
                 if (stats.containsKey("md_avg")) {
                     Row(Modifier.fillMaxWidth()) {
                         Text("Motion Detection", modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1)
-                        Text(stats["md_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["md_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["md_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["md_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall.mono())
+                        Text(stats["md_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall.mono())
+                        Text(stats["md_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall.mono())
                     }
                 }
                 if (stats.containsKey("full_avg")) {
                     Row(Modifier.fillMaxWidth()) {
                         Text("Full Processing", modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1)
-                        Text(stats["full_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["full_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
-                        Text(stats["full_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text(stats["full_min"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall.mono())
+                        Text(stats["full_avg"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall.mono())
+                        Text(stats["full_max"]?.let { "${it.fmt("%.1f")}s" } ?: "-", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall.mono())
                     }
                 }
             }
@@ -482,10 +570,17 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
 
                 val outlineArgb = MaterialTheme.colorScheme.outline.toAndroidColor()
 
+                // Bars grow up from the baseline on first show (and when the bar count changes).
+                val grow = remember { Animatable(0f) }
+                LaunchedEffect(chart.size) {
+                    grow.snapTo(0f)
+                    grow.animateTo(1f, animationSpec = tween(durationMillis = 600))
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(75.dp)
                         .pointerInput(chart.size) {
                             detectTapGestures { offset ->
                                 val barWidth = size.width.toFloat() / chart.size.coerceAtLeast(1)
@@ -517,7 +612,7 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
                         // Draw bars
                         chart.forEachIndexed { i, entry ->
                             val scaledVal = scaleValue(entry.seconds)
-                            val barHeight = (scaledVal / scaleMax * size.height).toFloat()
+                            val barHeight = (scaledVal / scaleMax * size.height).toFloat() * grow.value
                             drawRect(
                                 color = statusColor(entry.status),
                                 topLeft = Offset(i * barWidth, size.height - barHeight),

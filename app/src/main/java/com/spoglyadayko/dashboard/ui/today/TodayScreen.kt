@@ -6,6 +6,8 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -16,6 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import com.spoglyadayko.dashboard.ui.components.fadingEdges
+import com.spoglyadayko.dashboard.ui.components.sheenSweep
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -82,10 +87,21 @@ fun TodayScreen(
                         else list.filter { it.status !in excludedStatuses }
                     }
                 }
+                // A soft sheen sweeps down the list when this tab becomes active — a "flow" that keeps
+                // every row visible (no disappear-then-restagger when swiping in from the main page).
+                val sheen = remember { Animatable(1f) }
+                LaunchedEffect(isActive) {
+                    if (isActive) {
+                        sheen.snapTo(0f)
+                        sheen.animateTo(1f, animationSpec = tween(durationMillis = 1100))
+                    }
+                }
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxSize()
+                        .fadingEdges(topFade = 16.dp, bottomFade = 96.dp)
+                        .sheenSweep { sheen.value },
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 104.dp),
                 ) {
                     if (excludedStatuses.isNotEmpty()) {
                         item {
@@ -104,11 +120,37 @@ fun TodayScreen(
                         }
                     }
                     items(videos, key = { it.basename }) { video ->
-                        VideoRow(video = video, onClick = { onVideoClick(video.basename) })
+                        VideoRow(
+                            video = video,
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    // Scroll reveal: rows scale in + ease toward the nearest viewport
+                                    // edge — rising IN from the bottom, sliding UP and out at the top.
+                                    // Matched by key (not index) to survive the header offset. Alpha is
+                                    // owned by fadingEdges/sheenSweep, so it's untouched here.
+                                    val li = listState.layoutInfo
+                                    val info = li.visibleItemsInfo.firstOrNull { it.key == video.basename }
+                                    if (info != null && info.size > 0) {
+                                        val sz = info.size.toFloat()
+                                        val enterBottom = ((li.viewportEndOffset - info.offset) / sz).coerceIn(0f, 1f)
+                                        val enterTop = ((info.offset + info.size - li.viewportStartOffset) / sz).coerceIn(0f, 1f)
+                                        val s = 0.94f + 0.06f * minOf(enterBottom, enterTop)
+                                        scaleX = s
+                                        scaleY = s
+                                        translationY = if (enterBottom <= enterTop) (1f - enterBottom) * 16.dp.toPx()
+                                            else -(1f - enterTop) * 16.dp.toPx()
+                                    }
+                                }
+                                .animateItem(),
+                            onClick = { onVideoClick(video.basename) },
+                        )
                     }
                 }
             }
-            !state.loading -> {
+            state.loading -> {
+                com.spoglyadayko.dashboard.ui.components.ShimmerList(rows = 8, rowHeight = 52.dp)
+            }
+            else -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No data", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -118,9 +160,9 @@ fun TodayScreen(
 }
 
 @Composable
-private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
+private fun VideoRow(video: VideoSummary, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp)
             .clickable(onClick = onClick),
@@ -139,7 +181,7 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp,
-                ),
+                ).mono(),
                 modifier = Modifier.width(46.dp),
             )
 
@@ -196,7 +238,7 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                 ) {
                     Text(
                         "${(video.reidScore * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.mono(),
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                     )
@@ -212,7 +254,7 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                 ) {
                     Text(
                         "${(video.reidNeg * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.mono(),
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                     )
@@ -266,7 +308,7 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
                         )
                         Text(
                             "${video.speedKmh}",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.mono(),
                             color = Color.White,
                         )
                     }
@@ -279,7 +321,7 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
             if (video.processingTimeS != null) {
                 Text(
                     "${video.processingTimeS}s",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.mono(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -289,13 +331,13 @@ private fun VideoRow(video: VideoSummary, onClick: () -> Unit) {
             if (video.worker) {
                 Text(
                     "W",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.mono(),
                     color = MaterialTheme.colorScheme.tertiary,
                 )
             } else {
                 Text(
                     "L",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.mono(),
                     color = Color(0xFFFF6B00),
                 )
             }
