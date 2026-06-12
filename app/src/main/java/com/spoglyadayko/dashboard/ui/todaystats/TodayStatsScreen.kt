@@ -648,13 +648,22 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
                 if (hourBoundaries.isNotEmpty()) {
                     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                         val totalWidth = maxWidth
+                        // Sparse data (~1 video/hour) puts hour boundaries on adjacent bars, so their
+                        // labels collide. Thin them out: keep a label only if it's at least minSpacing
+                        // past the last one we drew. First boundary always shown.
+                        val minSpacing = 26.dp
+                        var lastShownX: Dp? = null
                         hourBoundaries.forEach { (h, fraction) ->
-                            Text(
-                                "${h}h",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.offset(x = totalWidth * fraction - 8.dp),
-                            )
+                            val x = totalWidth * fraction
+                            if (lastShownX == null || x - lastShownX!! >= minSpacing) {
+                                Text(
+                                    "${h}h",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.offset(x = x - 8.dp),
+                                )
+                                lastShownX = x
+                            }
                         }
                     }
                 }

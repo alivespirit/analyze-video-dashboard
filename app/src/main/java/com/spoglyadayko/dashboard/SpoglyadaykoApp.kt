@@ -4,7 +4,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -20,14 +19,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.paint
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -36,6 +41,8 @@ import com.spoglyadayko.dashboard.data.preferences.SettingsStore
 import com.spoglyadayko.dashboard.ui.monitoring.MonitoringScreen
 import com.spoglyadayko.dashboard.ui.overallstats.OverallStatsScreen
 import com.spoglyadayko.dashboard.ui.settings.SettingsScreen
+import com.spoglyadayko.dashboard.ui.theme.GochiHand
+import com.spoglyadayko.dashboard.ui.theme.Onest
 import com.spoglyadayko.dashboard.ui.theme.SpoglyadaykoTheme
 import com.spoglyadayko.dashboard.ui.theme.mono
 import dev.chrisbanes.haze.ExperimentalHazeApi
@@ -272,12 +279,48 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                             )
                             isSettings -> Text("Settings")
                             isGateCrossings -> Text("\u0425\u0432\u0456\u0440\u0442\u043A\u0430")
-                            else -> Image(
-                                painter = painterResource(R.drawable.app_title),
-                                contentDescription = "\u0421\u043F\u043E\u0433\u043B\u044F\u0434\u0430\u0439\u043A\u043E",
-                                modifier = Modifier.height(40.dp),
-                                contentScale = ContentScale.FillHeight,
-                            )
+                            else -> {
+                                // Live wordmark (was a baked PNG): Onest, wide-tracked geometric caps
+                                // with the brand cyan\u2192blue gradient + a soft glow halo (Shadow, no
+                                // offset). Theme-aware endpoints so it reads on the light background too.
+                                val brand = if (darkTheme)
+                                    listOf(Color(0xFF65E0FF), Color(0xFF4F86F7))
+                                else
+                                    listOf(Color(0xFF1591B5), Color(0xFF1E3A8A))
+                                val glow = if (darkTheme)
+                                    Color(0xFF65E0FF).copy(alpha = 0.55f)
+                                else
+                                    Color(0xFF1591B5).copy(alpha = 0.30f)
+                                Column {
+                                    Text(
+                                        "\u0421\u041F\u041E\u0413\u041B\u042F\u0414\u0410\u0419\u041A\u041E",
+                                        style = TextStyle(
+                                            brush = Brush.horizontalGradient(brand),
+                                            fontFamily = GochiHand,
+                                            fontWeight = FontWeight.Normal,
+                                            fontSize = 32.sp,
+                                            letterSpacing = 0.5.sp,
+                                            shadow = Shadow(
+                                                color = glow,
+                                                offset = Offset.Zero,
+                                                blurRadius = if (darkTheme) 22f else 9f,
+                                            ),
+                                        ),
+                                        maxLines = 1,
+                                    )
+                                    Text(
+                                        "\u0414\u0418\u0412\u0418\u0421\u042C. \u0410\u041D\u0410\u041B\u0406\u0417\u0423\u0419. \u041A\u041E\u041D\u0422\u0420\u041E\u041B\u042E\u0419.",
+                                        style = TextStyle(
+                                            fontFamily = Onest,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 9.sp,
+                                            letterSpacing = 2.sp,
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
                         }
                     },
                     navigationIcon = {

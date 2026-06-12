@@ -33,6 +33,10 @@ val Onest = FontFamily(
     onestFont(700),
 )
 
+/** Handwritten marker/graffiti display family — the current app wordmark. Single weight
+ * (static OFL font), so request FontWeight.Normal to avoid synthetic bolding. Full Cyrillic. */
+val GochiHand = FontFamily(Font(R.font.gochi_hand))
+
 /** Monospace family for all numbers, times, scores — instrument-panel feel; full Cyrillic. */
 val JetBrainsMono = FontFamily(
     monoFont(400),
