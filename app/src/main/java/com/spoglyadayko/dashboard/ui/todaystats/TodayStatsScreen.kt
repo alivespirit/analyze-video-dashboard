@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -17,10 +18,14 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -85,16 +90,10 @@ fun TodayStatsScreen(
                     contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 104.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    item {
-                        Text(
-                            "${data.day} \u2014 ${data.videosTotal} videos",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-
                     // Status counts — always show all known statuses, tap to exclude
                     item {
                         StatusCountsGrid(
+                            total = data.videosTotal,
                             counts = data.statusCounts,
                             excludedStatuses = excludedStatuses,
                             onToggle = { status ->
@@ -222,6 +221,7 @@ private fun JustifiedFlowRow(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatusCountsGrid(
+    total: Int,
     counts: Map<String, Int>,
     excludedStatuses: Set<String>,
     onToggle: (String) -> Unit,
@@ -230,12 +230,46 @@ private fun StatusCountsGrid(
     val unknownStatuses = counts.keys.filter { it !in ALL_STATUSES }.sorted()
     val displayStatuses = ALL_STATUSES + unknownStatuses
 
-    JustifiedFlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalGap = 6.dp,
-        verticalGap = 6.dp,
-    ) {
-        displayStatuses.forEach { status ->
+    // Theme-aware brand gradient (cyan->blue), matching the wordmark.
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val brand = if (dark)
+        listOf(Color(0xFF65E0FF), Color(0xFF4F86F7))
+    else
+        listOf(Color(0xFF1591B5), Color(0xFF1E3A8A))
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Count anchor: the total (= sum of these chips) as a big mono gradient number + unit.
+        // Count-up to the total, but reserve the FINAL number's width with an invisible placeholder
+        // so the anchor stays a constant width while the digits tick up — otherwise the changing
+        // digit count would re-wrap the justified chips mid-animation.
+        var target by remember { mutableStateOf(0) }
+        LaunchedEffect(total) { target = total }
+        val animated by animateIntAsState(target, tween(durationMillis = 700), label = "videoCount")
+        val numberStyle = MaterialTheme.typography.displaySmall.copy(
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.Bold,
+            brush = Brush.horizontalGradient(brand),
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("$total", style = numberStyle, modifier = Modifier.alpha(0f)) // reserves final width
+                Text("$animated", style = numberStyle)
+            }
+            Text(
+                "відео",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Pull up toward the number (closes the big number's line-height leading below it).
+                modifier = Modifier.offset(y = (-6).dp),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        JustifiedFlowRow(
+            modifier = Modifier.weight(1f),
+            horizontalGap = 6.dp,
+            verticalGap = 6.dp,
+        ) {
+            displayStatuses.forEach { status ->
             val count = counts[status] ?: 0
             val isExcluded = status in excludedStatuses
             val bgColor = statusColor(status)
@@ -263,6 +297,7 @@ private fun StatusCountsGrid(
                         else if (status in listOf("no_person", "no_significant_motion")) Color.Black
                         else Color.White,
                 )
+            }
             }
         }
     }
@@ -324,6 +359,10 @@ private fun parseHhMmToMinutes(s: String?): Int? {
 @Composable
 private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?) {
     val nowMarkerColor = MaterialTheme.colorScheme.tertiary
+    val selectionColor = MaterialTheme.colorScheme.onSurface
+    // Selected interval index — tap a timeline bar or a list row to highlight the pair in both
+    // places (tap again / tap empty to clear). Resets when the day's intervals change.
+    var selected by remember(intervals) { mutableStateOf<Int?>(null) }
 
     // Compute the visible time range:
     //   - left edge: floor(earliest start) to the hour
@@ -351,7 +390,22 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(20.dp),
+                .height(20.dp)
+                .pointerInput(intervals, dayStartMin, dayEndMin, totalMin, nowMinutes) {
+                    detectTapGestures { offset ->
+                        val w = size.width.toFloat()
+                        val idx = intervals.indexOfFirst { iv ->
+                            val s = parseHhMmToMinutes(iv.start)
+                            if (s == null) false else {
+                                val e = parseHhMmToMinutes(iv.end) ?: nowMinutes ?: dayEndMin
+                                val x1 = (s - dayStartMin) / totalMin * w
+                                val x2 = (e - dayStartMin) / totalMin * w
+                                offset.x >= x1 - 8f && offset.x <= x2.coerceAtLeast(x1 + 2f) + 8f
+                            }
+                        }
+                        selected = if (idx >= 0 && idx != selected) idx else null
+                    }
+                },
         ) {
             // Background = "home" (subtle)
             drawRect(
@@ -366,8 +420,8 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                 strokeWidth = 2f
             }
 
-            intervals.forEach { iv ->
-                val s = parseHhMmToMinutes(iv.start) ?: return@forEach
+            intervals.forEachIndexed { index, iv ->
+                val s = parseHhMmToMinutes(iv.start) ?: return@forEachIndexed
                 val isOpen = iv.end == null
                 // Ongoing intervals end at "now" when viewing today; otherwise the visible right edge.
                 val e = parseHhMmToMinutes(iv.end) ?: nowMinutes ?: dayEndMin
@@ -398,6 +452,16 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                         color = AwayColor,
                         topLeft = Offset(x1, 0f),
                         size = Size(w, size.height),
+                    )
+                }
+
+                // Outline the selected interval's bar.
+                if (index == selected) {
+                    drawRect(
+                        color = selectionColor,
+                        topLeft = Offset(x1, 0f),
+                        size = Size(w, size.height),
+                        style = Stroke(width = 2f),
                     )
                 }
             }
@@ -449,10 +513,18 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
 
         Spacer(Modifier.height(8.dp))
 
-        // Compact list with arrows
-        intervals.forEach { iv ->
+        // Compact list with arrows; tap a row (or its timeline bar) to highlight the pair.
+        intervals.forEachIndexed { index, iv ->
             Row(
-                modifier = Modifier.padding(vertical = 1.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { selected = if (selected == index) null else index }
+                    .background(
+                        if (selected == index) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                        else Color.Transparent,
+                    )
+                    .padding(vertical = 2.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("\u2191", color = AwayColor, style = MaterialTheme.typography.bodySmall)

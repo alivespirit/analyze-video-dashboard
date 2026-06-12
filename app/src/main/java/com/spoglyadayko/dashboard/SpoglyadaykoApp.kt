@@ -3,6 +3,10 @@ package com.spoglyadayko.dashboard
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -28,8 +32,10 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -291,15 +297,29 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                                     Color(0xFF65E0FF).copy(alpha = 0.55f)
                                 else
                                     Color(0xFF1591B5).copy(alpha = 0.30f)
-                                Column {
+                                // Fill the title slot (left edge \u2192 start of the actions/calendar icon)
+                                // and center the wordmark+tagline within it.
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
                                     Text(
                                         "\u0421\u041F\u041E\u0413\u041B\u042F\u0414\u0410\u0419\u041A\u041E",
                                         style = TextStyle(
                                             brush = Brush.horizontalGradient(brand),
                                             fontFamily = GochiHand,
                                             fontWeight = FontWeight.Normal,
-                                            fontSize = 32.sp,
+                                            fontSize = 38.sp,
                                             letterSpacing = 0.5.sp,
+                                            // Bigger glyphs, same vertical footprint: trim the default
+                                            // font padding + line-leading so the larger size reclaims
+                                            // that space instead of growing the title block height.
+                                            lineHeight = 38.sp,
+                                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                            lineHeightStyle = LineHeightStyle(
+                                                alignment = LineHeightStyle.Alignment.Center,
+                                                trim = LineHeightStyle.Trim.Both,
+                                            ),
                                             shadow = Shadow(
                                                 color = glow,
                                                 offset = Offset.Zero,
@@ -313,11 +333,15 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                                         style = TextStyle(
                                             fontFamily = Onest,
                                             fontWeight = FontWeight.Medium,
-                                            fontSize = 9.sp,
+                                            // Widened to keep spanning the wordmark's width as it grew.
+                                            // letterSpacing is the dial to match the title width exactly.
+                                            fontSize = 11.sp,
                                             letterSpacing = 2.sp,
                                         ),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
+                                        // Pull the tagline up to tighten the gap under the wordmark.
+                                        modifier = Modifier.offset(y = (-3).dp),
                                     )
                                 }
                             }
@@ -366,11 +390,17 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
             // at the bottom of the content Box), so it visually hovers over the screen.
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
-                // Main swipeable tabs (always composed, hidden behind overlays)
+                // Main swipeable tabs (always composed, hidden behind overlays). Fade the pager in/out
+                // (instead of snapping alpha) so it cross-fades with the overlay's NavHost transition
+                // below — same 220ms tween on both sides keeps the back-transition coordinated.
+                val pagerAlpha by animateFloatAsState(
+                    targetValue = if (isOverlay) 0f else 1f,
+                    animationSpec = tween(durationMillis = 220),
+                    label = "pagerOverlayAlpha",
+                )
                 HorizontalPager(
                     state = pagerState,
-                    modifier = (if (isOverlay) Modifier.fillMaxSize().alpha(0f) else Modifier.fillMaxSize())
-                        .hazeSource(hazeState),
+                    modifier = Modifier.fillMaxSize().alpha(pagerAlpha).hazeSource(hazeState),
                     beyondViewportPageCount = 1,
                     userScrollEnabled = !isOverlay,
                 ) { page ->
@@ -405,6 +435,12 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                     navController = navController,
                     startDestination = "empty",
                     modifier = Modifier.fillMaxSize(),
+                    // Match the pager's 220ms fade so overlay and main page cross-fade in lockstep
+                    // (was the default ~700ms fade, which desynced from the instant pager reveal).
+                    enterTransition = { fadeIn(tween(220)) },
+                    exitTransition = { fadeOut(tween(220)) },
+                    popEnterTransition = { fadeIn(tween(220)) },
+                    popExitTransition = { fadeOut(tween(220)) },
                 ) {
                     composable("empty") {
                         // Transparent placeholder — pager shows through
