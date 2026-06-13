@@ -418,6 +418,7 @@ fun SpoglyadaykoApp(deepLinkVideo: StateFlow<String?>? = null) {
                                 onVideoClick = { basename ->
                                     navController.navigate("video_detail/$basename")
                                 },
+                                onClearFilter = { scope.launch { settingsStore.setExcludedStatuses(emptySet()) } },
                             )
                             2 -> OverallStatsScreen(
                                 onVideoClick = { basename, day ->

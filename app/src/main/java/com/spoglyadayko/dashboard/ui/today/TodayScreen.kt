@@ -2,6 +2,7 @@ package com.spoglyadayko.dashboard.ui.today
 
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Warning
@@ -37,6 +38,7 @@ fun TodayScreen(
     selectedDay: String?,
     isActive: Boolean = true,
     onVideoClick: (String) -> Unit,
+    onClearFilter: () -> Unit = {},
     viewModel: TodayViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -105,17 +107,39 @@ fun TodayScreen(
                 ) {
                     if (excludedStatuses.isNotEmpty()) {
                         item {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(4.dp),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            // Slim filter bar: shown/total on the left, a connecting rule, and a clear
+                            // (X) on the right (the only place to reset the stats-page filter here).
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 8.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    "hidden: ${excludedStatuses.size} \u2022 ${videos.size}/${data.videos.size}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    "showing ",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                Text(
+                                    "${videos.size}/${data.videos.size}",
+                                    style = MaterialTheme.typography.labelMedium.mono(),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                HorizontalDivider(
+                                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                IconButton(
+                                    onClick = onClearFilter,
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Clear filter",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
