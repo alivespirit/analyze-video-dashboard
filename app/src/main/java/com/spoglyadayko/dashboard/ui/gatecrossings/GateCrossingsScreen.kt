@@ -113,7 +113,7 @@ fun GateCrossingsScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize().fadingEdges(topFade = 16.dp, bottomFade = 16.dp),
-                        contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 104.dp),
+                        contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         itemsIndexed(state.items, key = { _, it -> it.entry.basename }) { index, item ->
