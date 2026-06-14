@@ -1,5 +1,6 @@
 package com.spoglyadayko.dashboard.ui.todaystats
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
@@ -18,6 +19,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -31,7 +33,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.onSizeChanged
@@ -243,6 +247,9 @@ private fun StatusCountsGrid(
         listOf(Color(0xFF1591B5), Color(0xFF1E3A8A))
 
     val bracketColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // The bracket only makes sense when chips wrap to multiple rows (portrait); in landscape they're
+    // one row, so skip it.
+    val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
     // Measured number size so each arm can start ABOVE/BELOW the number itself.
     var numberSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -254,7 +261,7 @@ private fun StatusCountsGrid(
             .drawBehind {
                 val numW = numberSize.width.toFloat()
                 val numH = numberSize.height.toFloat()
-                if (numW > 0f) {
+                if (numW > 0f && isPortrait) {
                     val sw = 2.dp.toPx()
                     val r = 6.dp.toPx()                   // slightly rounded corners
                     val h = size.height
@@ -263,16 +270,17 @@ private fun StatusCountsGrid(
                     val xr = numW + 4.dp.toPx()           // horizontal stops just short of the chips (small gap)
                     val numTop = cy - numH / 2f
                     val numBot = cy + numH / 2f
-                    // Corner heights ≈ top & bottom chip rows, but always leave an 8dp stem.
-                    val cornerTopY = minOf(h * 0.15f, numTop - 8.dp.toPx())
-                    val cornerBotY = maxOf(h * 0.85f, numBot + 8.dp.toPx())
+                    // Corner sits a small gap above/below the number — matched to the line→chip gap.
+                    val stemGap = 4.dp.toPx()
+                    val cornerTopY = numTop - stemGap
+                    val cornerBotY = numBot + stemGap
                     val path = Path().apply {
-                        // Top arm: start above the number → up → rounded corner → right to the top chip.
+                        // Top arm: from the number top → up → rounded corner → right to the top chip.
                         moveTo(xv, numTop)
                         lineTo(xv, cornerTopY + r)
                         quadraticTo(xv, cornerTopY, xv + r, cornerTopY)
                         lineTo(xr, cornerTopY)
-                        // Bottom arm: start below the number → down → rounded corner → right to the bottom chip.
+                        // Bottom arm: from the number bottom → down → rounded corner → right to the bottom chip.
                         moveTo(xv, numBot)
                         lineTo(xv, cornerBotY - r)
                         quadraticTo(xv, cornerBotY, xv + r, cornerBotY)
@@ -294,6 +302,13 @@ private fun StatusCountsGrid(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Bold,
             brush = Brush.horizontalGradient(brand),
+            // Trim the line-height leading so the text box hugs the digits — the bracket stem starts at
+            // the box edge, so this is what actually shrinks the number→line gap.
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Center,
+                trim = LineHeightStyle.Trim.Both,
+            ),
         )
         Column(
             modifier = Modifier.onSizeChanged { numberSize = it },
@@ -305,7 +320,13 @@ private fun StatusCountsGrid(
             }
             Text(
                 "відео",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeightStyle = LineHeightStyle(
+                        alignment = LineHeightStyle.Alignment.Center,
+                        trim = LineHeightStyle.Trim.Both,
+                    ),
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 // Pull up toward the number (closes the big number's line-height leading below it).
                 modifier = Modifier.offset(y = (-6).dp),
