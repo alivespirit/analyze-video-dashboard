@@ -20,20 +20,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -237,7 +242,47 @@ private fun StatusCountsGrid(
     else
         listOf(Color(0xFF1591B5), Color(0xFF1E3A8A))
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    val bracketColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // Measured number size so each arm can start ABOVE/BELOW the number itself.
+    var numberSize by remember { mutableStateOf(IntSize.Zero) }
+
+    Row(
+        // Two arms emanate FROM the number: the top one starts just above the number, rises, rounds a
+        // corner, then runs right to the top chip; the bottom one starts just below, drops, corners,
+        // then runs right to the bottom chip. The number labels the group; the arms reach to the chips.
+        modifier = Modifier
+            .drawBehind {
+                val numW = numberSize.width.toFloat()
+                val numH = numberSize.height.toFloat()
+                if (numW > 0f) {
+                    val sw = 2.dp.toPx()
+                    val r = 6.dp.toPx()                   // slightly rounded corners
+                    val h = size.height
+                    val cy = h * 0.5f
+                    val xv = numW * 0.5f                  // vertical stem rises from the number's center
+                    val xr = numW + 4.dp.toPx()           // horizontal stops just short of the chips (small gap)
+                    val numTop = cy - numH / 2f
+                    val numBot = cy + numH / 2f
+                    // Corner heights ≈ top & bottom chip rows, but always leave an 8dp stem.
+                    val cornerTopY = minOf(h * 0.15f, numTop - 8.dp.toPx())
+                    val cornerBotY = maxOf(h * 0.85f, numBot + 8.dp.toPx())
+                    val path = Path().apply {
+                        // Top arm: start above the number → up → rounded corner → right to the top chip.
+                        moveTo(xv, numTop)
+                        lineTo(xv, cornerTopY + r)
+                        quadraticTo(xv, cornerTopY, xv + r, cornerTopY)
+                        lineTo(xr, cornerTopY)
+                        // Bottom arm: start below the number → down → rounded corner → right to the bottom chip.
+                        moveTo(xv, numBot)
+                        lineTo(xv, cornerBotY - r)
+                        quadraticTo(xv, cornerBotY, xv + r, cornerBotY)
+                        lineTo(xr, cornerBotY)
+                    }
+                    drawPath(path, bracketColor, style = Stroke(width = sw, cap = StrokeCap.Round))
+                }
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         // Count anchor: the total (= sum of these chips) as a big mono gradient number + unit.
         // Count-up to the total, but reserve the FINAL number's width with an invisible placeholder
         // so the anchor stays a constant width while the digits tick up — otherwise the changing
@@ -250,7 +295,10 @@ private fun StatusCountsGrid(
             fontWeight = FontWeight.Bold,
             brush = Brush.horizontalGradient(brand),
         )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.onSizeChanged { numberSize = it },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Box(contentAlignment = Alignment.Center) {
                 Text("$total", style = numberStyle, modifier = Modifier.alpha(0f)) // reserves final width
                 Text("$animated", style = numberStyle)
