@@ -133,8 +133,9 @@ private fun MasterCard(master: MasterStats) {
                     master.batteryPercent > 20 -> Icons.Default.Battery3Bar
                     else -> Icons.Default.Battery1Bar
                 }
-                // Plugged → charge bolt; on battery → estimated time left. Never both.
-                val batterySuffix = if (master.batteryPlugged == true) " ⚡"
+                // Plugged: the BatteryChargingFull icon already shows the bolt, so no text suffix.
+                // On battery: estimated time left.
+                val batterySuffix = if (master.batteryPlugged == true) ""
                     else master.batteryTimeLeftS?.let {
                         val h = it / 3600
                         val m = (it % 3600) / 60
@@ -223,8 +224,9 @@ private fun WorkerCard(worker: WorkerStats) {
                     worker.batteryPercent > 20 -> Icons.Default.Battery3Bar
                     else -> Icons.Default.Battery1Bar
                 }
-                // Plugged → charge bolt; on battery → estimated time left. Never both.
-                val batterySuffix = if (worker.batteryPlugged == true) " ⚡"
+                // Plugged: the BatteryChargingFull icon already shows the bolt, so no text suffix.
+                // On battery: estimated time left.
+                val batterySuffix = if (worker.batteryPlugged == true) ""
                     else worker.batteryTimeLeftS?.let {
                         val h = it / 3600
                         val m = (it % 3600) / 60

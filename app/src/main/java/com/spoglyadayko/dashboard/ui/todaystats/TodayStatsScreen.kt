@@ -23,7 +23,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Brush
@@ -428,7 +430,8 @@ private fun parseHhMmToMinutes(s: String?): Int? {
 @Composable
 private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?) {
     val nowMarkerColor = MaterialTheme.colorScheme.tertiary
-    val selectionColor = MaterialTheme.colorScheme.onSurface
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val selColor = if (dark) Color(0xFF65E0FF) else Color(0xFF1591B5)
     // Selected interval index — tap a timeline bar or a list row to highlight the pair in both
     // places (tap again / tap empty to clear). Resets when the day's intervals change.
     var selected by remember(intervals) { mutableStateOf<Int?>(null) }
@@ -498,10 +501,12 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                 val x2 = (e - dayStartMin) / totalMin * size.width
                 val w = (x2 - x1).coerceAtLeast(2f)
 
+                // When one interval is selected, dim the others (matches the bar charts).
+                val dimmed = selected != null && index != selected
                 if (isOpen) {
                     // Lighter fill + diagonal hatching to indicate "ongoing"
                     drawRect(
-                        color = AwayColor.copy(alpha = 0.4f),
+                        color = AwayColor.copy(alpha = if (dimmed) 0.18f else 0.4f),
                         topLeft = Offset(x1, 0f),
                         size = Size(w, size.height),
                     )
@@ -518,19 +523,19 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                     }
                 } else {
                     drawRect(
-                        color = AwayColor,
+                        color = if (dimmed) AwayColor.copy(alpha = 0.3f) else AwayColor,
                         topLeft = Offset(x1, 0f),
                         size = Size(w, size.height),
                     )
                 }
 
-                // Outline the selected interval's bar.
+                // Selected interval → brand outline.
                 if (index == selected) {
                     drawRect(
-                        color = selectionColor,
+                        color = selColor,
                         topLeft = Offset(x1, 0f),
                         size = Size(w, size.height),
-                        style = Stroke(width = 2f),
+                        style = Stroke(width = 2.5f),
                     )
                 }
             }
@@ -590,7 +595,7 @@ private fun AwayIntervalsSection(intervals: List<AwayInterval>, nowMinutes: Int?
                     .clip(RoundedCornerShape(4.dp))
                     .clickable { selected = if (selected == index) null else index }
                     .background(
-                        if (selected == index) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                        if (selected == index) selColor.copy(alpha = 0.16f)
                         else Color.Transparent,
                     )
                     .padding(vertical = 2.dp, horizontal = 4.dp),
@@ -680,10 +685,13 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
 
                 val maxSeconds = chart.maxOfOrNull { it.seconds } ?: 1.0
                 val avgSeconds = chart.map { it.seconds }.average()
-                // Only use log scale if there's a clear outlier (>= 4x average)
-                val useLogScale = avgSeconds > 0 && maxSeconds >= 4.0 * avgSeconds
-                val scaleValue: (Double) -> Double = if (useLogScale) {
-                    { v -> kotlin.math.log10(1.0 + v) }
+                // Compress only when there's a clear outlier (>= 4x average). A power curve (gamma < 1)
+                // is gentler than log10 — outliers stay clearly taller while small bars don't vanish.
+                // Tune toward 1.0 for more separation (linear), toward 0.5 for more compression.
+                val compress = 0.6
+                val useSoftScale = avgSeconds > 0 && maxSeconds >= 4.0 * avgSeconds
+                val scaleValue: (Double) -> Double = if (useSoftScale) {
+                    { v -> Math.pow(v, compress) }
                 } else {
                     { v -> v }
                 }
@@ -698,10 +706,10 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (useLogScale) {
+                    if (useSoftScale) {
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "log scale",
+                            "soft scale",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.tertiary,
                         )
@@ -717,6 +725,9 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
                     grow.snapTo(0f)
                     grow.animateTo(1f, animationSpec = tween(durationMillis = 600))
                 }
+
+                val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                val selColor = if (dark) Color(0xFF65E0FF) else Color(0xFF1591B5)
 
                 Box(
                     modifier = Modifier
@@ -750,24 +761,41 @@ private fun ProcessingTimesCard(stats: Map<String, Double>, chart: List<ChartEnt
                             lastHour = h ?: lastHour
                         }
 
-                        // Draw bars
+                        // Draw bars (rounded tops; dim the non-selected when a bar is selected).
+                        val anySelected = selectedIdx != null
+                        val bw = (barWidth - 1f).coerceAtLeast(1f)
+                        val corner = (bw * 0.4f).coerceAtMost(4.dp.toPx())
                         chart.forEachIndexed { i, entry ->
                             val scaledVal = scaleValue(entry.seconds)
                             val barHeight = (scaledVal / scaleMax * size.height).toFloat() * grow.value
-                            drawRect(
-                                color = statusColor(entry.status),
-                                topLeft = Offset(i * barWidth, size.height - barHeight),
-                                size = Size(barWidth - 1f, barHeight),
-                            )
+                            if (barHeight <= 0f) return@forEachIndexed
+                            val left = i * barWidth
+                            val a = if (anySelected && selectedIdx != i) 0.28f else 1f
+                            val p = Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        left = left, top = size.height - barHeight,
+                                        right = left + bw, bottom = size.height,
+                                        topLeftCornerRadius = CornerRadius(corner, corner),
+                                        topRightCornerRadius = CornerRadius(corner, corner),
+                                        bottomRightCornerRadius = CornerRadius.Zero,
+                                        bottomLeftCornerRadius = CornerRadius.Zero,
+                                    ),
+                                )
+                            }
+                            drawPath(p, statusColor(entry.status).copy(alpha = a))
                         }
 
-                        // Selection highlight
+                        // Selected bar → brand underline (instead of a white box).
                         selectedIdx?.let { idx ->
-                            drawRect(
-                                color = Color.White,
-                                topLeft = Offset(idx * barWidth, 0f),
-                                size = Size((barWidth - 1f).coerceAtLeast(2f), size.height),
-                                style = Stroke(width = 2f),
+                            val uw = 2.5.dp.toPx()
+                            val left = idx * barWidth
+                            drawLine(
+                                selColor,
+                                Offset(left, size.height - uw / 2f),
+                                Offset(left + bw, size.height - uw / 2f),
+                                uw,
+                                cap = StrokeCap.Round,
                             )
                         }
                     }

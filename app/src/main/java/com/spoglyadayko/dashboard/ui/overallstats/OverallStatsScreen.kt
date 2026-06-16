@@ -19,9 +19,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
@@ -165,7 +171,6 @@ private fun PerDayChart(
             }
             Spacer(Modifier.height(8.dp))
 
-            val labelArgb = MaterialTheme.colorScheme.onSurfaceVariant.toAndroidColor()
             val maxVideos = perDay.maxOfOrNull { it.videosTotal } ?: 1
             // Canonical stack order, bottom-up — drawing starts from bottom so the
             // first entry sits at the base. Order from "noisiest / least significant"
@@ -190,10 +195,13 @@ private fun PerDayChart(
                 grow.animateTo(1f, animationSpec = tween(durationMillis = 600))
             }
 
+            val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+            val selColor = if (dark) Color(0xFF65E0FF) else Color(0xFF1591B5)
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(160.dp)
+                    .height(120.dp)
                     .pointerInput(perDay.size) {
                         detectTapGestures { offset ->
                             val barWidth = size.width.toFloat() / perDay.size.coerceAtLeast(1)
@@ -203,43 +211,71 @@ private fun PerDayChart(
                     },
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val barWidth = size.width / perDay.size.coerceAtLeast(1)
+                    val n = perDay.size.coerceAtLeast(1)
+                    val slot = size.width / n
+                    // Bars take ~90% of their slot, centered (tight gap between bars).
+                    val barW = (slot * 0.9f).coerceAtMost(slot - 1.dp.toPx()).coerceAtLeast(2f)
+                    val corner = (barW * 0.30f).coerceAtMost(6.dp.toPx())
+                    val anySelected = selectedIdx != null
 
                     perDay.forEachIndexed { i, day ->
-                        var yOffset = size.height
-                        allStatuses.forEach { status ->
-                            val count = day.statusCounts[status] ?: 0
-                            if (count > 0) {
-                                val barHeight = (count.toFloat() / maxVideos * size.height) * grow.value
-                                yOffset -= barHeight
-                                drawRect(
-                                    color = statusColor(status),
-                                    topLeft = Offset(i * barWidth, yOffset),
-                                    size = Size(barWidth - 1f, barHeight),
-                                )
+                        val left = i * slot + (slot - barW) / 2f
+                        val total = allStatuses.sumOf { day.statusCounts[it] ?: 0 }
+                        if (total <= 0) return@forEachIndexed
+                        val totalH = (total.toFloat() / maxVideos * size.height) * grow.value
+                        val dimmed = anySelected && selectedIdx != i
+                        // Clip the whole column to a rounded-top rectangle, then fill the stacked segments.
+                        val clip = Path().apply {
+                            addRoundRect(
+                                RoundRect(
+                                    left = left,
+                                    top = size.height - totalH,
+                                    right = left + barW,
+                                    bottom = size.height,
+                                    topLeftCornerRadius = CornerRadius(corner, corner),
+                                    topRightCornerRadius = CornerRadius(corner, corner),
+                                    bottomRightCornerRadius = CornerRadius.Zero,
+                                    bottomLeftCornerRadius = CornerRadius.Zero,
+                                ),
+                            )
+                        }
+                        clipPath(clip) {
+                            var y = size.height
+                            allStatuses.forEach { status ->
+                                val count = day.statusCounts[status] ?: 0
+                                if (count > 0) {
+                                    val segH = (count.toFloat() / maxVideos * size.height) * grow.value
+                                    y -= segH
+                                    val c = statusColor(status)
+                                    drawRect(
+                                        color = if (dimmed) c.copy(alpha = 0.28f) else c,
+                                        topLeft = Offset(left, y),
+                                        size = Size(barW, segH),
+                                    )
+                                }
                             }
                         }
-
-                        // Selection highlight
+                        // Selected day → a brand-colored underline (instead of a harsh white box).
                         if (selectedIdx == i) {
-                            drawRect(
-                                color = Color.White,
-                                topLeft = Offset(i * barWidth, 0f),
-                                size = Size(barWidth - 1f, size.height),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f),
+                            val uw = 2.5.dp.toPx()
+                            drawLine(
+                                selColor,
+                                Offset(left, size.height - uw / 2f),
+                                Offset(left + barW, size.height - uw / 2f),
+                                uw,
+                                cap = StrokeCap.Round,
                             )
                         }
                     }
-
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "$maxVideos",
-                        4f, 14f,
-                        android.graphics.Paint().apply {
-                            this.color = labelArgb
-                            textSize = 24f
-                        },
-                    )
                 }
+
+                // Max-value label (Compose overlay, mono) — replaces the raw native paint.
+                Text(
+                    "max: $maxVideos",
+                    style = MaterialTheme.typography.labelSmall.mono(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
             }
 
             // Day labels (evenly spaced across all days)
@@ -329,7 +365,6 @@ private fun ProcessingTimesChart(
             }
             Spacer(Modifier.height(8.dp))
 
-            val labelArgb = MaterialTheme.colorScheme.onSurfaceVariant.toAndroidColor()
             val maxTime = perDay.maxOf {
                 val md = if (showMd) it.mdAvg ?: 0.0 else 0.0
                 val full = if (showFull) it.fullAvg ?: 0.0 else 0.0
@@ -343,10 +378,13 @@ private fun ProcessingTimesChart(
                 grow.animateTo(1f, animationSpec = tween(durationMillis = 600))
             }
 
+            val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+            val selColor = if (dark) Color(0xFF65E0FF) else Color(0xFF1591B5)
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(120.dp)
                     .pointerInput(perDay.size) {
                         detectTapGestures { offset ->
                             val barWidth = size.width.toFloat() / perDay.size.coerceAtLeast(1)
@@ -359,50 +397,73 @@ private fun ProcessingTimesChart(
                     val barWidth = size.width / perDay.size.coerceAtLeast(1)
                     val bothShown = showMd && showFull
                     val subBar = if (bothShown) barWidth / 2f else barWidth
+                    // 1px seam so adjacent bars don't merge — stays a hairline even at ~120 bars
+                    // (a fixed dp seam would swallow the thin bars in the "All" range).
+                    val bw = (subBar - 1f).coerceAtLeast(1f)
+                    val corner = (bw * 0.30f).coerceAtMost(5.dp.toPx())
+                    val anySelected = selectedIdx != null
 
                     perDay.forEachIndexed { i, day ->
+                        val a = if (anySelected && selectedIdx != i) 0.28f else 1f
                         var offsetX = i * barWidth
                         if (showMd) {
                             val mdH = ((day.mdAvg ?: 0.0) / maxTime * size.height).toFloat() * grow.value
-                            if (mdH > 0) {
-                                drawRect(
-                                    color = mdColor,
-                                    topLeft = Offset(offsetX, size.height - mdH),
-                                    size = Size(subBar - 1f, mdH),
-                                )
+                            if (mdH > 0f) {
+                                val p = Path().apply {
+                                    addRoundRect(
+                                        RoundRect(
+                                            left = offsetX, top = size.height - mdH,
+                                            right = offsetX + bw, bottom = size.height,
+                                            topLeftCornerRadius = CornerRadius(corner, corner),
+                                            topRightCornerRadius = CornerRadius(corner, corner),
+                                            bottomRightCornerRadius = CornerRadius.Zero,
+                                            bottomLeftCornerRadius = CornerRadius.Zero,
+                                        ),
+                                    )
+                                }
+                                drawPath(p, mdColor.copy(alpha = a))
                             }
                             if (bothShown) offsetX += subBar
                         }
                         if (showFull) {
                             val fullH = ((day.fullAvg ?: 0.0) / maxTime * size.height).toFloat() * grow.value
-                            if (fullH > 0) {
-                                drawRect(
-                                    color = fullColor,
-                                    topLeft = Offset(offsetX, size.height - fullH),
-                                    size = Size(subBar - 1f, fullH),
-                                )
+                            if (fullH > 0f) {
+                                val p = Path().apply {
+                                    addRoundRect(
+                                        RoundRect(
+                                            left = offsetX, top = size.height - fullH,
+                                            right = offsetX + bw, bottom = size.height,
+                                            topLeftCornerRadius = CornerRadius(corner, corner),
+                                            topRightCornerRadius = CornerRadius(corner, corner),
+                                            bottomRightCornerRadius = CornerRadius.Zero,
+                                            bottomLeftCornerRadius = CornerRadius.Zero,
+                                        ),
+                                    )
+                                }
+                                drawPath(p, fullColor.copy(alpha = a))
                             }
                         }
-
+                        // Selected day → brand underline (instead of a white box).
                         if (selectedIdx == i) {
-                            drawRect(
-                                color = Color.White,
-                                topLeft = Offset(i * barWidth, 0f),
-                                size = Size(barWidth - 1f, size.height),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f),
+                            val uw = 2.5.dp.toPx()
+                            drawLine(
+                                selColor,
+                                Offset(i * barWidth, size.height - uw / 2f),
+                                Offset(i * barWidth + barWidth, size.height - uw / 2f),
+                                uw,
+                                cap = StrokeCap.Round,
                             )
                         }
                     }
-
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "${maxTime.fmt("%.0f")}s",
-                        4f, 14f,
-                        android.graphics.Paint().apply {
-                            this.color = labelArgb
-                            textSize = 24f
-                        },
-                    )
                 }
+
+                // Max-value label (Compose overlay, mono).
+                Text(
+                    "max: ${maxTime.fmt("%.0f")}s",
+                    style = MaterialTheme.typography.labelSmall.mono(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
             }
 
             // Day labels (evenly spaced across all days)
