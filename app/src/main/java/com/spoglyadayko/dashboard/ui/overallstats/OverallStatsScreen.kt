@@ -213,8 +213,8 @@ private fun PerDayChart(
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val n = perDay.size.coerceAtLeast(1)
                     val slot = size.width / n
-                    // Bars take ~90% of their slot, centered (tight gap between bars).
-                    val barW = (slot * 0.9f).coerceAtMost(slot - 1.dp.toPx()).coerceAtLeast(2f)
+                    // 1px seam between bars — matches the processing-times-per-day chart.
+                    val barW = (slot - 1f).coerceAtLeast(2f)
                     val corner = (barW * 0.30f).coerceAtMost(6.dp.toPx())
                     val anySelected = selectedIdx != null
 
