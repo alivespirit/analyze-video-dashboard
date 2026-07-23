@@ -42,7 +42,16 @@ class EventPollService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = buildStatusNotification(lastStatusText)
-        startForeground(STATUS_NOTIFICATION_ID, notification)
+        try {
+            startForeground(STATUS_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            // e.g. ForegroundServiceStartNotAllowedException if a foreground-service time
+            // limit is exhausted, or a POST_NOTIFICATIONS restriction. Never let this crash
+            // the process (the old dataSync 6h-cap restart loop did exactly that). Give up
+            // this start quietly; MainActivity restarts the service when the app is reopened.
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // Only start polling once — ignore duplicate startService calls
         if (pollingJob?.isActive != true) {
             pollingJob = startPolling()
@@ -51,6 +60,18 @@ class EventPollService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    // Foreground-service timeout callbacks (Android 14 one-arg / Android 15 two-arg). The
+    // specialUse type isn't time-limited, so these shouldn't fire — but if any FGS time limit
+    // ever applies, stop cleanly here instead of being force-crashed with
+    // ForegroundServiceDidNotStopInTimeException.
+    override fun onTimeout(startId: Int) {
+        stopSelf()
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        stopSelf()
+    }
 
     override fun onDestroy() {
         scope.cancel()

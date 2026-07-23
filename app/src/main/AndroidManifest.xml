@@ -3,7 +3,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- specialUse (not dataSync): the event poller must run continuously. dataSync is capped at
+         6h/24h on Android 15 and crashes the process when the budget runs out. specialUse has no
+         time limit and honestly describes a private surveillance-server poller. The Play Store
+         review requirement for specialUse doesn't apply — this app is sideloaded. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -32,8 +36,12 @@
 
         <service
             android:name=".service.EventPollService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Polls a private, self-hosted surveillance server for away/back events and shows status/event notifications" />
+        </service>
     </application>
 
 </manifest>

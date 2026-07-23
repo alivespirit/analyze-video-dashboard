@@ -36,8 +36,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // versionCode scheme: major*10000 + minor*100 + patch (3.0.0 -> 30000).
-        versionCode = 30000
-        versionName = "3.0.0"
+        versionCode = 30001
+        versionName = "3.0.1"
     }
 
     buildTypes {
